@@ -1,4 +1,3 @@
-# SD Card location
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
