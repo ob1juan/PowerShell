@@ -13,14 +13,23 @@ $files = Get-ChildItem $inputDir -file -Recurse
 $global:fileCount = 0
 $global:fileSuccessCount = 0
 $global:fileErrorCount = 0
+$global:rawExts = @(
+    ".cr2",
+    ".cr3",
+    ".arw",
+    ".raf",
+    ".raw",
+    ".rwl"
+    ".dng"
+)
 
 # Create reusable func for changing dir based on type
 function copyFileOfType($file, $type, $parent) {
     # find when it was created
     $dateCreated = $file.CreationTime
     $year = $dateCreated.Year
-    $day = $dateCreated.ToString("dd")
-    $month = $dateCreated.month
+    $day = (Get-Date -Date $dateCreated).ToString("dd")
+    $month = (Get-Date -Date $dateCreated).ToString("MM")
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
     
@@ -57,18 +66,25 @@ foreach ($f in $files) {
     $fileCount++
     $fileName = $f.Name
     $parent = $f.Directory.BaseName
-    
+    $fileExt = [IO.Path]::GetExtension($fileName) 
+    Write-Host "File Ext $fileExt"
+
     if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
         copyFileOfType -file $f -type "jpg" -parent $parent
+        Write-Host "JPG: $f"
     }
-    elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
+    elseif ($global:rawExts -contains $fileExt) {
+    #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
         copyFileOfType -file $f -type "raw" -parent $parent
+        Write-Host "Raw: $f"
     }
-    elseif ( [IO.Path]::GetExtension($fileName) -eq '.mp4') {
+    elseif ($fileExt -eq '.mp4') {
         copyFileOfType -file $f -type "video" -parent $parent
+        Write-Host "Video: $f"
     }
     else {
         copyFileOfType -file $f -type "other" -parent $parent
+        Write-Host "Other: $f"
     }    
 }
 
