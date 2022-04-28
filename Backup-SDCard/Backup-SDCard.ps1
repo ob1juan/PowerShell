@@ -22,6 +22,12 @@ $global:rawExts = @(
     ".rwl"
     ".dng"
 )
+$global:videoExts = @(
+    ".mov",
+    ".mp4",
+    ".wmv",
+    ".m4v"
+)
 
 # Create reusable func for changing dir based on type
 function copyFileOfType($file, $type, $parent) {
@@ -78,7 +84,7 @@ foreach ($f in $files) {
         copyFileOfType -file $f -type "raw" -parent $parent
         Write-Host "Raw: $f"
     }
-    elseif ($fileExt -eq '.mp4') {
+    elseif ($global:videoExts -contains $fileExt) {
         copyFileOfType -file $f -type "video" -parent $parent
         Write-Host "Video: $f"
     }
