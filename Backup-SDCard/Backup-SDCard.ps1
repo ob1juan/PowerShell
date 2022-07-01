@@ -26,7 +26,8 @@ $global:videoExts = @(
     ".mov",
     ".mp4",
     ".wmv",
-    ".m4v"
+    ".m4v",
+    ".lrv"
 )
 
 # Create reusable func for changing dir based on type
