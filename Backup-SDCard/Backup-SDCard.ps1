@@ -29,6 +29,9 @@ $global:videoExts = @(
     ".m4v",
     ".lrv"
 )
+$global:profileExts = @(
+    ".lcs"
+)
 
 # Create reusable func for changing dir based on type
 function copyFileOfType($file, $type, $parent) {
@@ -43,6 +46,10 @@ function copyFileOfType($file, $type, $parent) {
     $folderName = $outputDir + "\" + $year + "\" + $year + "-" + $month + "-" + $day + "\" + $parent + "\" `
          + "\" + $type + "\"
 	
+    if ($type -eq "profile"){
+        $folderName = $outputDir + "\Profiles\" + $year + "\" + $year + "-" + $month + "-" + $day + "\" + $parent + "\"
+    }
+
     # Check if the folder exists, if it doesn't create it
     if (-not (Test-Path $folderName)) { 
         try {
@@ -51,7 +58,6 @@ function copyFileOfType($file, $type, $parent) {
         catch {
             Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
         }
-        
     }
     # build up the full path inc filename
     $filePath = $folderName + $fileName
@@ -59,6 +65,7 @@ function copyFileOfType($file, $type, $parent) {
     if (-not (Test-Path $filePath)) {
         try {
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            Write-Host -ForegroundColor Green "$fileName"
             $global:fileSuccessCount++
         }
         catch {
@@ -74,27 +81,33 @@ foreach ($f in $files) {
     $fileName = $f.Name
     $parent = $f.Directory.BaseName
     $fileExt = [IO.Path]::GetExtension($fileName) 
-    Write-Host "File Ext $fileExt"
+    $perct = ($fileCount / $files.count) * 100
+    Write-Progress -Activity "Progress" -Status "Copying" -PercentComplete $perct
 
     if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
         copyFileOfType -file $f -type "jpg" -parent $parent
-        Write-Host "JPG: $f"
+        #Write-Host "JPG: $f"
     }
     elseif ($global:rawExts -contains $fileExt) {
     #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
         copyFileOfType -file $f -type "raw" -parent $parent
-        Write-Host "Raw: $f"
+        #Write-Host "Raw: $f"
     }
     elseif ($global:videoExts -contains $fileExt) {
         copyFileOfType -file $f -type "video" -parent $parent
-        Write-Host "Video: $f"
+        #Write-Host "Video: $f"
+    }
+    elseif ($global:profileExts -contains $fileExt){
+        copyFileOfType -file $f -type "profile" -parent $parent
+        #Write-Host "Profile: $f"
     }
     else {
         copyFileOfType -file $f -type "other" -parent $parent
-        Write-Host "Other: $f"
+        #Write-Host "Other: $f"
     }    
 }
-
+$date = Get-Date
+Write-host $date
 Write-Host -ForegroundColor Yellow "$fileCount total files in source."
 Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
 if ($fileErrorCount -gt 0) {
