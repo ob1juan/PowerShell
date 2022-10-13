@@ -10,7 +10,13 @@ param (
 
 # get all files inside all folders and sub folders
 $files = Get-ChildItem $inputDir -file -Recurse
+$global:OS
+$global:separator
+$global:dngConverter
+$global:rawFolders = @()
 $global:fileCount = 0
+$global:rawFileCount = 0
+$global:crawFileCount = 0
 $global:fileSuccessCount = 0
 $global:fileErrorCount = 0
 $global:rawExts = @(
@@ -33,7 +39,57 @@ $global:profileExts = @(
     ".lcs"
 )
 
+if ($IsMacOS){
+    Write-Host "MacOS"
+    $OS = "MacOS"
+    $global:separator = "/"
+    $global:dngConverter = "open -a '/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter' --args -c"
+}elseif ($IsWindows){
+    Write-Host "Windows"
+    $OS = "Windows"
+    $global:separator = "\"
+    $global:dngConverter = "'C:\Program Files\Adobe DNG Converter.exe' -c"
+}elseif ($IsLinux){
+    Write-Host "Linux"
+    $OS = "Linux"
+    $global:separator = "/"
+}else{
+    Write-Host "What is this running on?"
+}
+
 # Create reusable func for changing dir based on type
+function compressDNG($folderName, $outFolderName) {
+    write-host "compressing DNG $folderName"
+    $rawFiles = Get-ChildItem $folderName -file -Recurse
+
+    if (-not (Test-Path $outFolderName)) { 
+        try {
+            new-item $outFolderName -itemtype directory -ErrorAction Stop
+            Write-Host "Created Folder $outFolderName"
+        }
+        catch {
+            Write-Host -ForegroundColor red "Could not create $outFolderName. $_.Exception.Message" 
+        }
+    }
+
+    $doDngConverter = $global:dngConverter + " -d '$outFolderName'"
+
+    foreach ($rawFile in $rawFiles){
+        $filePath = $rawFile.FullName
+        $doDngConverter += " '$filePath'"
+    }
+    
+    Write-Host "dngConverter = $doDngConverter"
+    try {
+        Invoke-Expression $doDngConverter
+        $global:crawFileCount ++
+    }
+    catch {
+        $global:fileErrorCount++
+        Write-Host -ForegroundColor red "Could not compress $fileName. $_.Exception.Message"
+    }
+}
+
 function copyFileOfType($file, $type, $parent) {
     # find when it was created
     $dateCreated = $file.CreationTime
@@ -43,11 +99,11 @@ function copyFileOfType($file, $type, $parent) {
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
     
-    $folderName = $outputDir + "\" + $year + "\" + $year + "-" + $month + "-" + $day + "\" + $parent + "\" `
-         + "\" + $type + "\"
+    $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
+         + $type + $global:separator
 	
     if ($type -eq "profile"){
-        $folderName = $outputDir + "\Profiles\" + $year + "\" + $year + "-" + $month + "-" + $day + "\" + $parent + "\"
+        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator
     }
 
     # Check if the folder exists, if it doesn't create it
@@ -71,7 +127,13 @@ function copyFileOfType($file, $type, $parent) {
         catch {
             $global:fileErrorCount++
             Write-Host -ForegroundColor red "Could not copy file $fileName. $_.Exception.Message"
-        }       
+        }    
+    }
+
+    if ($type -eq "raw"){
+        if($global:rawFolders -notcontains $folderName){
+            $global:rawFolders += $folderName
+        }
     }
 }
 
@@ -91,6 +153,7 @@ foreach ($f in $files) {
     elseif ($global:rawExts -contains $fileExt) {
     #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
         copyFileOfType -file $f -type "raw" -parent $parent
+        $global:rawFileCount ++
         #Write-Host "Raw: $f"
     }
     elseif ($global:videoExts -contains $fileExt) {
@@ -106,6 +169,13 @@ foreach ($f in $files) {
         #Write-Host "Other: $f"
     }    
 }
+
+foreach ($rawFolder in $global:rawFolders){
+    $outFolderName = $rawFolder -replace ("raw", "rawc")
+    compressDNG -folderName $rawFolder -outFolderName $outFolderName
+}
+
+
 $date = Get-Date
 Write-host $date
 Write-Host -ForegroundColor Yellow "$fileCount total files in source."
