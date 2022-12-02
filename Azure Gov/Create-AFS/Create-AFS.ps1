@@ -26,7 +26,7 @@ param (
     $serverEndpointPath = "<your-server-endpoint-path>",
     [Parameter()]
     [bool]
-    $createServerEndPoint = $true,
+    $createServerEndPoint = $false,
     [Parameter()]
     [bool]
     $cloudTieringDesired = $true
