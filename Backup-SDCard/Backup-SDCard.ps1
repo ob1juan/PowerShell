@@ -35,6 +35,21 @@ $global:videoExts = @(
     ".m4v",
     ".lrv"
 )
+$global:tifExts =@(
+    ".tif",
+    ".tiff",
+    ".psd",
+    ".psb"
+)
+$global:heifExts =@(
+    ".hif",
+    ".heif"
+)
+$global:audioExts = @(
+    ".mp3",
+    ".wav",
+    ".aac"
+)
 $global:profileExts = @(
     ".lcs"
 )
@@ -96,6 +111,7 @@ function copyFileOfType($file, $type, $parent) {
     $year = $dateCreated.Year
     $day = (Get-Date -Date $dateCreated).ToString("dd")
     $month = (Get-Date -Date $dateCreated).ToString("MM")
+    $fileName = $file.Name
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
     
@@ -117,6 +133,9 @@ function copyFileOfType($file, $type, $parent) {
     }
     # build up the full path inc filename
     $filePath = $folderName + $fileName
+    Write-host -ForegroundColor DarkCyan $parent
+    Write-Host -ForegroundColor Cyan $filePath
+
     # If it's not already copied, copy it
     if (-not (Test-Path $filePath)) {
         try {
@@ -150,6 +169,9 @@ foreach ($f in $files) {
         copyFileOfType -file $f -type "jpg" -parent $parent
         #Write-Host "JPG: $f"
     }
+    elseIf($global:heifExts -contains $fileExt){
+        copyFileOfType -file -type "heif" -parent $parent
+    }
     elseif ($global:rawExts -contains $fileExt) {
     #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
         copyFileOfType -file $f -type "raw" -parent $parent
@@ -162,6 +184,10 @@ foreach ($f in $files) {
     }
     elseif ($global:profileExts -contains $fileExt){
         copyFileOfType -file $f -type "profile" -parent $parent
+        #Write-Host "Profile: $f"
+    }
+    elseif ($global:audioExts -contains $fileExt){
+        copyFileOfType -file $f -type "audio" -parent $parent
         #Write-Host "Profile: $f"
     }
     else {
