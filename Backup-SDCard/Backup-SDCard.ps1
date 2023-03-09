@@ -170,7 +170,7 @@ foreach ($f in $files) {
         #Write-Host "JPG: $f"
     }
     elseIf($global:heifExts -contains $fileExt){
-        copyFileOfType -file -type "heif" -parent $parent
+        copyFileOfType -file $f -type "heif" -parent $parent
     }
     elseif ($global:rawExts -contains $fileExt) {
     #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
