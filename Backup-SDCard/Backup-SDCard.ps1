@@ -210,9 +210,12 @@ if ($fileErrorCount -gt 0) {
     Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
 }
 
-$inputDir = $inputDir.Remove(":")
-$format = Read-Host "Type FORMAT to format the $inputDir."
-if ($format -ceq "FORMAT"){
-    $label = (Get-Volume -DriveLetter $inputDir).FileSystemLabel
-    Format-Volume -DriveLetter $inputDir -NewFileSystemLabel $label
+if ($fileSuccessCount -gt $fileErrorCount){
+    $inputDir = $inputDir.Remove(":")
+    $format = Read-Host "Type FORMAT to format the $inputDir."
+    if ($format -ceq "FORMAT"){
+        $label = (Get-Volume -DriveLetter $inputDir).FileSystemLabel
+        Format-Volume -DriveLetter $inputDir -NewFileSystemLabel $label
+    }
 }
+
