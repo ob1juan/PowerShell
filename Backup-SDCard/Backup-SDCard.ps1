@@ -57,18 +57,18 @@ $global:profileExts = @(
 
 if ($IsMacOS){
     #Write-Host "MacOS"
-    $global:OS = "MacOS"
-    $global:separator = "/"
+    $global:OS = "MacOS"| out-null
+    $global:separator = "/"| out-null
     $global:dngConverter = "open -a '/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter' --args -c"
 }elseif ($IsWindows){
     #Write-Host "Windows"
-    $global:OS = "Windows"
-    $global:separator = "\"
-    $global:dngConverter = "'C:\Program Files\Adobe DNG Converter.exe' -c"
+    $global:OS = "Windows"| out-null
+    $global:separator = "\"| out-null
+    $global:dngConverter = "'C:\Program Files\Adobe DNG Converter.exe' -c"| out-null
 }elseif ($IsLinux){
     #Write-Host "Linux"
-    $global:OS = "Linux"
-    $global:separator = "/"
+    $global:OS = "Linux"| out-null
+    $global:separator = "/"| out-null
 }else{
     Write-Host "What is this running on?"
 }
