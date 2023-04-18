@@ -56,17 +56,17 @@ $global:profileExts = @(
 )
 
 if ($IsMacOS){
-    Write-Host "MacOS"
+    #Write-Host "MacOS"
     $OS = "MacOS"
     $global:separator = "/"
     $global:dngConverter = "open -a '/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter' --args -c"
 }elseif ($IsWindows){
-    Write-Host "Windows"
+    #Write-Host "Windows"
     $OS = "Windows"
     $global:separator = "\"
     $global:dngConverter = "'C:\Program Files\Adobe DNG Converter.exe' -c"
 }elseif ($IsLinux){
-    Write-Host "Linux"
+    #Write-Host "Linux"
     $OS = "Linux"
     $global:separator = "/"
 }else{
@@ -134,8 +134,8 @@ function copyFileOfType($file, $type, $parent) {
     }
     # build up the full path inc filename
     $filePath = $folderName + $fileName
-    Write-host -ForegroundColor DarkCyan $parent
-    Write-Host -ForegroundColor Cyan $filePath
+    #Write-host -ForegroundColor DarkCyan $parent
+    #Write-Host -ForegroundColor Cyan $filePath
 
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
