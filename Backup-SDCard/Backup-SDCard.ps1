@@ -19,6 +19,7 @@ $global:rawFileCount = 0
 $global:crawFileCount = 0
 $global:fileSuccessCount = 0
 $global:fileErrorCount = 0
+$global:filesNotCopied = @()
 $global:rawExts = @(
     ".cr2",
     ".cr3",
@@ -137,14 +138,26 @@ function copyFileOfType($file, $type, $parent) {
     Write-Host -ForegroundColor Cyan $filePath
 
     # If it's not already copied, copy it
-    if (-not (Test-Path $filePath)) {
+    $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
+    $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+
+    if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
+            Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
             Write-Host -ForegroundColor Green "$fileName"
-            $global:fileSuccessCount++
+            $destHash = (get-filehash $filePath -Algorithm md5).Hash
+            if ($sourceHash -eq $destHash){
+                Write-Host -ForegroundColor Green $filePath "matches checksum."
+                $global:fileSuccessCount++
+            }else{
+                $global:fileErrorCount++
+                Write-Host -ForegroundColor red "checksum does not match $fileName. $_.Exception.Message"
+            }
         }
         catch {
             $global:fileErrorCount++
+            $global:filesNotCopied += $filePath
             Write-Host -ForegroundColor red "Could not copy file $fileName. $_.Exception.Message"
         }    
     }
@@ -198,7 +211,7 @@ foreach ($f in $files) {
 
 foreach ($rawFolder in $global:rawFolders){
     $outFolderName = $rawFolder -replace ("raw", "rawc")
-    compressDNG -folderName $rawFolder -outFolderName $outFolderName
+    #compressDNG -folderName $rawFolder -outFolderName $outFolderName
 }
 
 
@@ -207,11 +220,15 @@ Write-host $date
 Write-Host -ForegroundColor Yellow "$fileCount total files in source."
 Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
 if ($fileErrorCount -gt 0) {
-    Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
+    Write-Host -ForegroundColor Red "$global:fileErrorCount files could not be copied."
+    Write-Host -ForegroundColor Red "Files not copied:"
+    foreach ($file in $global:filesNotCopied){
+        Write-Host -ForegroundColor Red $file
+    }
 }
 
 if ($fileSuccessCount -gt $fileErrorCount){
-    $inputDir = $inputDir.Remove(":")
+    $inputDir = $inputDir -replace(':','')
     $format = Read-Host "Type FORMAT to format the $inputDir."
     if ($format -ceq "FORMAT"){
         $label = (Get-Volume -DriveLetter $inputDir).FileSystemLabel
