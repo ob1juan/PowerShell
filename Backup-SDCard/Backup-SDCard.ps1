@@ -10,6 +10,8 @@ param (
 
 # get all files inside all folders and sub folders
 $files = Get-ChildItem $inputDir -file -Recurse
+
+$global:sourceVolume = Get-Volume (($inputDir) -split ":")[0]
 $global:OS
 $global:separator
 $global:dngConverter
@@ -115,12 +117,14 @@ function copyFileOfType($file, $type, $parent) {
     $fileName = $file.Name
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
-    
+    if ($null -eq $parent){
+        $parent = "root"
+    }
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
          + $type + $global:separator
 	
     if ($type -eq "profile"){
-        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator
+        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator
     }
 
     # Check if the folder exists, if it doesn't create it
@@ -143,15 +147,16 @@ function copyFileOfType($file, $type, $parent) {
 
     if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
-            Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
+            #Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
-            Write-Host -ForegroundColor Green "$fileName"
+            #Write-Host -ForegroundColor Green "$fileName"
             $destHash = (get-filehash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
-                Write-Host -ForegroundColor Green $filePath "matches checksum."
+                Write-Host -ForegroundColor Green $filePath "copied and verified."
                 $global:fileSuccessCount++
             }else{
                 $global:fileErrorCount++
+                $global:filesNotCopied += $filePath
                 Write-Host -ForegroundColor red "checksum does not match $fileName. $_.Exception.Message"
             }
         }
@@ -160,6 +165,8 @@ function copyFileOfType($file, $type, $parent) {
             $global:filesNotCopied += $filePath
             Write-Host -ForegroundColor red "Could not copy file $fileName. $_.Exception.Message"
         }    
+    }else {
+        Write-Host -ForegroundColor DarkGreen "$fileName already exists."
     }
 
     if ($type -eq "raw"){
@@ -228,11 +235,10 @@ if ($fileErrorCount -gt 0) {
 }
 
 if ($fileSuccessCount -gt $fileErrorCount){
-    $inputDir = $inputDir -replace(':','')
-    $format = Read-Host "Type FORMAT to format the $inputDir."
+    $format = Read-Host "Type FORMAT to format the $global:sourceVolume."
     if ($format -ceq "FORMAT"){
-        $label = (Get-Volume -DriveLetter $inputDir).FileSystemLabel
-        Format-Volume -DriveLetter $inputDir -NewFileSystemLabel $label
+        $label = (Get-Volume -DriveLetter $global:sourceVolume).FileSystemLabel
+        Format-Volume -DriveLetter $global:sourceVolume -NewFileSystemLabel $label
     }
 }
 
