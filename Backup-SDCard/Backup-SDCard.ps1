@@ -12,6 +12,7 @@ param (
 $files = Get-ChildItem $inputDir -file -Recurse
 
 $global:sourceVolume = Get-Volume (($inputDir) -split ":")[0]
+$global:sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
 $global:OS
 $global:separator
 $global:dngConverter
@@ -235,10 +236,10 @@ if ($fileErrorCount -gt 0) {
 }
 
 if ($fileSuccessCount -gt $fileErrorCount){
-    $format = Read-Host "Type FORMAT to format the $global:sourceVolume."
+    $format = Read-Host "Type FORMAT to format the $global:sourceDriveLetter."
     if ($format -ceq "FORMAT"){
-        $label = (Get-Volume -DriveLetter $global:sourceVolume).FileSystemLabel
-        Format-Volume -DriveLetter $global:sourceVolume -NewFileSystemLabel $label
+        $label = (Get-Volume -DriveLetter $global:sourceDriveLetter).FileSystemLabel
+        Format-Volume -DriveLetter $global:sourceDriveLetter -NewFileSystemLabel $label
     }
 }
 
