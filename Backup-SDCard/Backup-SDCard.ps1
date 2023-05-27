@@ -5,7 +5,7 @@ param (
     $inputDir,
     [Parameter(Mandatory=$true)]
     [string]
-    $outputDir
+    $outputDir = "B:\Backup\CardBackup"
 )
 
 # get all files inside all folders and sub folders
