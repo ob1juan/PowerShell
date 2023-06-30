@@ -14,14 +14,7 @@ $spRolesCsv = ".\EnterpriseApplicationReport.csv"
 
 Write-Host "Connecting to source tenant...." -ForegroundColor Green
 
-<#
-$sourceApps = Get-Content -Raw -Path "C:\Users\rhodesjuan\Downloads\motenant\AzureADApps.json" | ConvertFrom-Json
-$sourceSPs = Get-Content -Raw -Path "C:\Users\rhodesjuan\Downloads\motenant\ServicePrincipals.json" | ConvertFrom-Json
-#>
-
-#Connect to MoStateGov2 Tenant
-#MoStateGov2: 3b04de90-4610-49f4-b32b-faaf041592ca
-#MOGCC: 831ecdf9-06f4-49a9-9b3e-32a7eac7ca52
+#Connect to Source Tenant
 
 try{
     Connect-AzureAD -TenantId $sourceTenant -ErrorAction Stop #MoStateGov2 Tenant
@@ -55,7 +48,7 @@ foreach ($servicePrincipal in $sourceSPs) {
 }
 
 ##############################################################################################################################################
-#Connect to MoGCC Tenant
+#Connect to Dest Tenant
 write-host "Connecting to destination tenant...." -ForegroundColor Green
 try{
     Connect-AzureAD -TenantId $destTenant -ErrorAction Stop #MoGCC Tenant
