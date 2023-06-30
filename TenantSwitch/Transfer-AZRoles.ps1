@@ -7,13 +7,29 @@ param (
     [string]
     $destTenant
 )
+$idLog = @()
+
+function logID {
+    param (
+        [string]
+        $displayName,
+        [string]
+        $signInName,
+        [string]
+        $objectType
+    )
+    $idObj | Add-Member -MemberType NoteProperty -Name "displayName" -Value $displayName
+    $idObj | Add-Member -MemberType NoteProperty -Name "signInName" -Value $signInName
+    $idObj | Add-Member -MemberType NoteProperty -Name "objectType" -Value $objectType
+    $idLog += $idObj
+}
+
 function checkIDexists {
     param (
         [string]
         $displayName,
         [string]
         $signInName,
-        [Parameter(Mandatory=$true)]
         [string]
         $objectType
     )
@@ -75,6 +91,7 @@ foreach ($role in $sourceRoles) {
     $objectID = checkIDexists -displayName $role.DisplayName -signInName $role.SignInName -objectType $role.objectType
     if ($objectID -eq "") {
         Write-Host -ForegroundColor Red "$($role.DisplayName) $($role.SignInName) does not exist in destination tenant."
+        logID -displayName $role.DisplayName -signInName $role.SignInName -objectType $role.objectType
     }
     else {
         try {
@@ -87,3 +104,5 @@ foreach ($role in $sourceRoles) {
         }
     }
 }
+$idLog | Export-Csv -Path ".\idLog.csv" -NoTypeInformation
+Write-Host "Done importing roles. See log file for ID that did not exist. .\idLog.csv" -ForegroundColor Green
