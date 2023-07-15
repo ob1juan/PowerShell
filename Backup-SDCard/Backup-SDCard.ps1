@@ -3,7 +3,6 @@ param (
     [Parameter(Mandatory=$true)]
     [string]
     $inputDir,
-    [Parameter(Mandatory=$true)]
     [string]
     $outputDir = "B:\Backup\CardBackup"
 )
@@ -23,6 +22,7 @@ $global:crawFileCount = 0
 $global:fileSuccessCount = 0
 $global:fileErrorCount = 0
 $global:filesNotCopied = @()
+$global:resumeLogPath = "~/Backup-SDCard-Resume.log"
 $global:rawExts = @(
     ".cr2",
     ".cr3",
@@ -177,12 +177,14 @@ function copyFileOfType($file, $type, $parent) {
     }
 }
 
-$resumeFiles = Import-Csv -Path "~/Backup-SDCard-Resume.log" -ErrorAction SilentlyContinue
-if ($resumeFiles.count -gt 0){
-    $origFiles = $files
-    $resumeBackup = Read-Host "Type Resume continue where last backup failed."
-    if ($resumeBackup -eq "Resume"){
-        $files = $resumeFiles
+if (Test-Path ($global:resumeLogPath)) {
+    $resumeFiles = Import-Csv -Path $global:resumeLogPath -ErrorAction SilentlyContinue
+    if ($resumeFiles.count -gt 0){
+        $origFiles = $files
+        $resumeBackup = Read-Host "Type Resume to continue where last backup failed. Or Enter/Return to continue."
+        if ($resumeBackup -eq "Resume"){
+            $files = $resumeFiles
+        }
     }
 }
 
