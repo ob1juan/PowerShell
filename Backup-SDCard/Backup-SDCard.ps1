@@ -177,6 +177,15 @@ function copyFileOfType($file, $type, $parent) {
     }
 }
 
+$resumeFiles = Import-Csv -Path "~/Backup-SDCard-Resume.log" -ErrorAction SilentlyContinue
+if ($resumeFiles.count -gt 0){
+    $origFiles = $files
+    $resumeBackup = Read-Host "Type Resume continue where last backup failed."
+    if ($resumeBackup -eq "Resume"){
+        $files = $resumeFiles
+    }
+}
+
 foreach ($f in $files) { 
     # get the files name
     $fileCount++
@@ -242,4 +251,6 @@ if ($fileSuccessCount -gt $fileErrorCount){
         Format-Volume -DriveLetter $global:sourceDriveLetter -NewFileSystemLabel $label
     }
 }
+$global:filesNotCopied |Export-Csv -Path "~/Backup-SDCard-Resume.log" -NoTypeInformation
+
 
