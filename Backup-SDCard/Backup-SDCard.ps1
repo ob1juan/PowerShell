@@ -4,7 +4,9 @@ param (
     [string[]]
     $inputDirs=@(),
     [string]
-    $outputDir = "B:\Backup\CardBackup"
+    $outputDir = "B:\Backup\CardBackup",
+    [bool]
+    $format = $false
 )
 
 $global:OS
@@ -245,16 +247,15 @@ function backupSource($inputDir){
         $outFolderName = $rawFolder -replace ("raw", "rawc")
         #compressDNG -folderName $rawFolder -outFolderName $outFolderName
     }
-    
-<#     
-    if ($fileSuccessCount -gt $fileErrorCount){
+         
+    if ($fileSuccessCount -gt 0 -AND $fileErrorCount -eq 0 -AND $format -eq $true){
         $format = Read-Host "Type FORMAT to format the $sourceDriveLetter."
         if ($format -ceq "FORMAT"){
             $label = (Get-Volume -DriveLetter $sourceDriveLetter).FileSystemLabel
             Format-Volume -DriveLetter $sourceDriveLetter -NewFileSystemLabel $label
         }
     } 
-#>
+
     $filesNotCopied = $global:backupLog | Where-Object {$_.Success -eq $false}
     $filesNotCopied |Export-Csv -Path "~/Backup-SDCard-Resume.log" -NoTypeInformation
 }
@@ -264,7 +265,7 @@ foreach ($inputDir in $inputDirs){
     backupSource -inputDir $inputDir
 }
 
-$log | Export-Csv -Path $global:logPath -Append -NoTypeInformation
+$global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
 $date = Get-Date
 Write-host $date
 
