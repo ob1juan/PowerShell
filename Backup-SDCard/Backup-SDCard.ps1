@@ -18,8 +18,21 @@ $global:rawExts = @(
     ".arw",
     ".raf",
     ".raw",
-    ".rwl"
-    ".dng"
+    ".rwl",
+    ".dng",
+    ".nef",
+    ".nrw",
+    ".orf",
+    ".rw2",
+    ".pef",
+    ".srw",
+    ".srf",
+    ".sr2",
+    ".kdc",
+    ".dcr",
+    ".mrw",
+    ".erf",
+    ".3fr"
 )
 $global:videoExts = @(
     ".mov",
