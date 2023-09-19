@@ -93,11 +93,16 @@ function copyFileOfType($file, $type, $parent) {
     if ($null -eq $parent){
         $parent = "root"
     }
+
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
          + $type + $global:separator
 	
     if ($type -eq "profile"){
         $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator
+    }
+
+    if ($parent -eq "root"){
+        $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $type + $global:separator
     }
 
     # Check if the folder exists, if it doesn't create it
