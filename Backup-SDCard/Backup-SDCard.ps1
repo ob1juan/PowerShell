@@ -57,7 +57,8 @@ $global:audioExts = @(
     ".aac"
 )
 $global:profileExts = @(
-    ".lcs"
+    ".lcs",
+    ".lcse"
 )
 
 if ($IsMacOS){
@@ -90,8 +91,9 @@ function copyFileOfType($file, $type, $parent) {
     $fileName = $file.Name
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
-    if ($null -eq $parent){
-        $parent = "root"
+    if (($null -eq $parent) -or ($type -eq "other")){
+        $parent = "other"
+        $type = "unknown"
     }
 
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
@@ -99,10 +101,6 @@ function copyFileOfType($file, $type, $parent) {
 	
     if ($type -eq "profile"){
         $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator
-    }
-
-    if ($parent -eq "root"){
-        $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $type + $global:separator
     }
 
     # Check if the folder exists, if it doesn't create it
