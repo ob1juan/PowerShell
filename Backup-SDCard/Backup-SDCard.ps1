@@ -1,36 +1,38 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
+    [string[]]
+    $inputDirs=@(),
     [string]
-    $inputDir,
-    [Parameter(Mandatory=$true)]
-    [string]
-    $outputDir = "B:\Backup\CardBackup"
+    $outputDir = "B:\Backup\CardBackup",
+    [bool]
+    $format = $false
 )
 
-# get all files inside all folders and sub folders
-$files = Get-ChildItem $inputDir -file -Recurse
-
-$global:sourceVolume = Get-Volume (($inputDir) -split ":")[0]
-$global:sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
 $global:OS
 $global:separator
 $global:dngConverter
-$global:rawFolders = @()
-$global:fileCount = 0
-$global:rawFileCount = 0
-$global:crawFileCount = 0
-$global:fileSuccessCount = 0
-$global:fileErrorCount = 0
-$global:filesNotCopied = @()
 $global:rawExts = @(
     ".cr2",
     ".cr3",
     ".arw",
     ".raf",
     ".raw",
-    ".rwl"
-    ".dng"
+    ".rwl",
+    ".dng",
+    ".nef",
+    ".nrw",
+    ".orf",
+    ".rw2",
+    ".pef",
+    ".srw",
+    ".srf",
+    ".sr2",
+    ".kdc",
+    ".dcr",
+    ".mrw",
+    ".erf",
+    ".3fr"
 )
 $global:videoExts = @(
     ".mov",
@@ -55,7 +57,8 @@ $global:audioExts = @(
     ".aac"
 )
 $global:profileExts = @(
-    ".lcs"
+    ".lcs",
+    ".lcse"
 )
 
 if ($IsMacOS){
@@ -75,39 +78,9 @@ if ($IsMacOS){
 }else{
     Write-Host "What is this running on?"
 }
-
-# Create reusable func for changing dir based on type
-function compressDNG($folderName, $outFolderName) {
-    write-host "compressing DNG $folderName"
-    $rawFiles = Get-ChildItem $folderName -file -Recurse
-
-    if (-not (Test-Path $outFolderName)) { 
-        try {
-            new-item $outFolderName -itemtype directory -ErrorAction Stop
-            Write-Host "Created Folder $outFolderName"
-        }
-        catch {
-            Write-Host -ForegroundColor red "Could not create $outFolderName. $_.Exception.Message" 
-        }
-    }
-
-    $doDngConverter = $global:dngConverter + " -d '$outFolderName'"
-
-    foreach ($rawFile in $rawFiles){
-        $filePath = $rawFile.FullName
-        $doDngConverter += " '$filePath'"
-    }
-    
-    Write-Host "dngConverter = $doDngConverter"
-    try {
-        Invoke-Expression $doDngConverter
-        $global:crawFileCount ++
-    }
-    catch {
-        $global:fileErrorCount++
-        Write-Host -ForegroundColor red "Could not compress $fileName. $_.Exception.Message"
-    }
-}
+$global:resumeLogPath = "~/Backup-SDCard-Resume.log"
+$global:backupLog = @()
+$global:backupLogPath = "~/Backup-SDCard-Log.log"
 
 function copyFileOfType($file, $type, $parent) {
     # find when it was created
@@ -118,9 +91,11 @@ function copyFileOfType($file, $type, $parent) {
     $fileName = $file.Name
 
     # Build up a path to where the file should be copied to (e.g. 1_2_Jan) use numbers for ordering and inc month name to make reading easier.
-    if ($null -eq $parent){
-        $parent = "root"
+    if (($null -eq $parent) -or ($type -eq "other")){
+        $parent = "other"
+        $type = "unknown"
     }
+
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
          + $type + $global:separator
 	
@@ -146,6 +121,14 @@ function copyFileOfType($file, $type, $parent) {
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
 
+    $logObj = New-Object psobject
+    $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
+    $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
+    $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
+    $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $filePath
+    $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $fileSuccess
+    $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value $fileError
+
     if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
             #Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
@@ -154,92 +137,174 @@ function copyFileOfType($file, $type, $parent) {
             $destHash = (get-filehash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
                 Write-Host -ForegroundColor Green $filePath "copied and verified."
-                $global:fileSuccessCount++
+                $logObj.Success = $true
             }else{
-                $global:fileErrorCount++
-                $global:filesNotCopied += $filePath
+                $logObj.Success = $false
+                $logObj.Message = "checksum does not match $fileName. $_.Exception.Message"
+
                 Write-Host -ForegroundColor red "checksum does not match $fileName. $_.Exception.Message"
             }
         }
         catch {
-            $global:fileErrorCount++
-            $global:filesNotCopied += $filePath
+            $logObj.Success = $false
+            $logObj.Message = "Could not copy file $fileName. $_.Exception.Message"
             Write-Host -ForegroundColor red "Could not copy file $fileName. $_.Exception.Message"
         }    
     }else {
         Write-Host -ForegroundColor DarkGreen "$fileName already exists."
+        $logObj.Success = $true
+        $logObj.Message = "File already exists"
     }
 
     if ($type -eq "raw"){
-        if($global:rawFolders -notcontains $folderName){
-            $global:rawFolders += $folderName
+        if($rawFolders -notcontains $folderName){
+            $rawFolders += $folderName
         }
     }
+    $global:backupLog += $logObj
 }
 
-foreach ($f in $files) { 
-    # get the files name
-    $fileCount++
-    $fileName = $f.Name
-    $parent = $f.Directory.BaseName
-    $fileExt = [IO.Path]::GetExtension($fileName) 
-    $perct = ($fileCount / $files.count) * 100
-    Write-Progress -Activity "Progress" -Status "Copying" -PercentComplete $perct
+function backupSource($inputDir){
+    # get all files inside all folders and sub folders
+    $files = Get-ChildItem $inputDir -file -Recurse
 
-    if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
-        copyFileOfType -file $f -type "jpg" -parent $parent
-        #Write-Host "JPG: $f"
+    $sourceVolume = Get-Volume (($inputDir) -split ":")[0]
+    $sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
+    $rawFolders = @()
+    $fileCount = 0
+    $rawFileCount = 0
+    $crawFileCount = 0
+    
+    # Create reusable func for changing dir based on type
+    function compressDNG($folderName, $outFolderName) {
+        write-host "compressing DNG $folderName"
+        $rawFiles = Get-ChildItem $folderName -file -Recurse
+
+        if (-not (Test-Path $outFolderName)) { 
+            try {
+                new-item $outFolderName -itemtype directory -ErrorAction Stop
+                Write-Host "Created Folder $outFolderName"
+            }
+            catch {
+                Write-Host -ForegroundColor red "Could not create $outFolderName. $_.Exception.Message" 
+            }
+        }
+
+        $doDngConverter = $global:dngConverter + " -d '$outFolderName'"
+
+        foreach ($rawFile in $rawFiles){
+            $filePath = $rawFile.FullName
+            $doDngConverter += " '$filePath'"
+        }
+        
+        Write-Host "dngConverter = $doDngConverter"
+        try {
+            Invoke-Expression $doDngConverter
+            $crawFileCount ++
+        }
+        catch {
+            $fileErrorCount++
+            Write-Host -ForegroundColor red "Could not compress $fileName. $_.Exception.Message"
+        }
     }
-    elseIf($global:heifExts -contains $fileExt){
-        copyFileOfType -file $f -type "heif" -parent $parent
+
+    if (Test-Path ($global:resumeLogPath)) {
+        $resumeFiles = Import-Csv -Path $global:resumeLogPath -ErrorAction SilentlyContinue
+        if ($resumeFiles.count -gt 0){
+            $origFiles = $files
+            $resumeBackup = Read-Host "Type Resume to continue where last backup failed. Or Enter/Return to continue."
+            if ($resumeBackup -eq "Resume"){
+                $files = $resumeFiles
+            }
+        }
     }
-    elseif ($global:rawExts -contains $fileExt) {
-    #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
-        copyFileOfType -file $f -type "raw" -parent $parent
-        $global:rawFileCount ++
-        #Write-Host "Raw: $f"
+
+    foreach ($f in $files) { 
+        # get the files name
+        $fileCount++
+        $fileName = $f.Name
+        $parent = $f.Directory.BaseName
+        $fileExt = [IO.Path]::GetExtension($fileName) 
+        $perct = ($fileCount / $files.count) * 100
+        Write-Progress -Activity "Progress" -Status "Copying" -PercentComplete $perct
+
+        if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
+            copyFileOfType -file $f -type "jpg" -parent $parent
+            #Write-Host "JPG: $f"
+        }
+        elseIf($global:heifExts -contains $fileExt){
+            copyFileOfType -file $f -type "heif" -parent $parent
+        }
+        elseif ($global:rawExts -contains $fileExt) {
+        #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
+            copyFileOfType -file $f -type "raw" -parent $parent
+            $rawFileCount ++
+            #Write-Host "Raw: $f"
+        }
+        elseif ($global:videoExts -contains $fileExt) {
+            copyFileOfType -file $f -type "video" -parent $parent
+            #Write-Host "Video: $f"
+        }
+        elseif ($global:profileExts -contains $fileExt){
+            copyFileOfType -file $f -type "profile" -parent $parent
+            #Write-Host "Profile: $f"
+        }
+        elseif ($global:audioExts -contains $fileExt){
+            copyFileOfType -file $f -type "audio" -parent $parent
+            #Write-Host "Profile: $f"
+        }
+        else {
+            copyFileOfType -file $f -type "other" -parent $parent
+            #Write-Host "Other: $f"
+        }    
     }
-    elseif ($global:videoExts -contains $fileExt) {
-        copyFileOfType -file $f -type "video" -parent $parent
-        #Write-Host "Video: $f"
+
+    foreach ($rawFolder in $rawFolders){
+        $outFolderName = $rawFolder -replace ("raw", "rawc")
+        #compressDNG -folderName $rawFolder -outFolderName $outFolderName
     }
-    elseif ($global:profileExts -contains $fileExt){
-        copyFileOfType -file $f -type "profile" -parent $parent
-        #Write-Host "Profile: $f"
-    }
-    elseif ($global:audioExts -contains $fileExt){
-        copyFileOfType -file $f -type "audio" -parent $parent
-        #Write-Host "Profile: $f"
-    }
-    else {
-        copyFileOfType -file $f -type "other" -parent $parent
-        #Write-Host "Other: $f"
-    }    
+         
+    if ($fileSuccessCount -gt 0 -AND $fileErrorCount -eq 0 -AND $format -eq $true){
+        $format = Read-Host "Type FORMAT to format the $sourceDriveLetter."
+        if ($format -ceq "FORMAT"){
+            $label = (Get-Volume -DriveLetter $sourceDriveLetter).FileSystemLabel
+            Format-Volume -DriveLetter $sourceDriveLetter -NewFileSystemLabel $label
+        }
+    } 
+
+    $filesNotCopied = $global:backupLog | Where-Object {$_.Success -eq $false}
+    $filesNotCopied |Export-Csv -Path "~/Backup-SDCard-Resume.log" -NoTypeInformation
 }
 
-foreach ($rawFolder in $global:rawFolders){
-    $outFolderName = $rawFolder -replace ("raw", "rawc")
-    #compressDNG -folderName $rawFolder -outFolderName $outFolderName
+foreach ($inputDir in $inputDirs){
+    write-host "Backing up $inputDir"
+    backupSource -inputDir $inputDir
 }
 
-
+$global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
 $date = Get-Date
 Write-host $date
-Write-Host -ForegroundColor Yellow "$fileCount total files in source."
-Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
-if ($fileErrorCount -gt 0) {
-    Write-Host -ForegroundColor Red "$global:fileErrorCount files could not be copied."
-    Write-Host -ForegroundColor Red "Files not copied:"
-    foreach ($file in $global:filesNotCopied){
-        Write-Host -ForegroundColor Red $file
+
+foreach ($inputDir in $inputDirs){
+    $log = $global:backupLog |Where-Object {$_.inputDir -eq $inputDir}
+    $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
+    $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
+    $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
+    
+    Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
+    Write-Host -ForegroundColor Yellow "$fileCount total files in source."
+    Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
+    Write-Host "------------------------------------------"
+    
+    if ($fileErrorCount -gt 0) {
+        Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
+        <#
+        Write-Host -ForegroundColor Red "Files not copied:"
+        foreach ($file in $filesNotCopied){
+            Write-Host -ForegroundColor Red $file
+        }
+        #>
     }
 }
 
-if ($fileSuccessCount -gt $fileErrorCount){
-    $format = Read-Host "Type FORMAT to format the $global:sourceDriveLetter."
-    if ($format -ceq "FORMAT"){
-        $label = (Get-Volume -DriveLetter $global:sourceDriveLetter).FileSystemLabel
-        Format-Volume -DriveLetter $global:sourceDriveLetter -NewFileSystemLabel $label
-    }
-}
 
