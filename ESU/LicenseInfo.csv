@@ -1,0 +1,5 @@
+﻿licenseName,resourceGroupName,SubscriptionID,location,type,target,edition,state,processors
+agency1vcore,agency1arc,,northcentralus,vCore,Windows Server 2012,Standard,Activated,8
+agency1vcore,agency1arc,,northcentralus,pCore,Windows Server 2012,Standard,Activated,16
+agency2vcore,agency2arc,,northcentralus,vCore,Windows Server 2012,Standard,Activated,8
+agency2vcore,agency2arc,,northcentralus,pCore,Windows Server 2012,Standard,Deactivated,16
