@@ -49,7 +49,8 @@ $global:tifExts =@(
 )
 $global:heifExts =@(
     ".hif",
-    ".heif"
+    ".heif",
+    ".heic"
 )
 $global:audioExts = @(
     ".mp3",
