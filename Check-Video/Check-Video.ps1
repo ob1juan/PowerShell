@@ -30,31 +30,36 @@ if (-not (Test-Path $badFolder)) {
 # Define a function to check the video file
 function Check-Video ($file) {
   # Create a new MediaInfo object
-  $mediaInfo = Get-MediaInfo $file
+  $mediaInfo = Get-MediaInfo $file.FullName
   $format = $mediaInfo.Format
   $duration = $mediaInfo.Duration
-  
+
   # Check if the video format is valid
   if ($format -ne "") {
     # Print the video information
     Write-Output "Video file: $file"
-    Write-Output "Format: $format"
-    Write-Output "Duration: $duration seconds"
+    #Write-Output "Format: $format"
+    #Write-Output "Duration: $duration seconds"
     # Return True if the video file is playable
     return $true
   }
   else {
     # Print an error message
     Write-Output "Error: Cannot open video file $file"
+    Write-Host -ForegroundColor Yellow "Moving $file to $badFolder"
+    try {
+        Move-Item $file.FullName $badFolder -ErrorAction Stop
+        Write-Output "Moved $file to $badFolder"
+    }
+    catch {
+        Write-Host -ForegroundColor red "Could not move $file to $badFolder. $_.Exception.Message"
+    }
+   
     # Return False if the video file is not playable
     return $false
   }
 }
 
 foreach ($file in $files) {
-    $result = Check-Video $file
-    if (-not $result) {
-        Write-Host -ForegroundColor red "Moving $file to $badFolder"
-        Move-Item $file $badFolder
-    }
+    Check-Video $file
 }
