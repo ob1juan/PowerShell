@@ -4,7 +4,7 @@ param (
     [string[]]
     $inputDirs=@(),
     [string]
-    $outputDir = "A:\Backup\CardBackup",
+    $outputDir = "s:\Backup\CardBackup",
     [bool]
     $format = $false
 )
