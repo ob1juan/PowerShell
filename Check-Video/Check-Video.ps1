@@ -2,11 +2,14 @@
 param (
     [Parameter(Mandatory=$true)]
     [string[]]
-    $inputDir
+    $inputDir,
+    [Parameter(Mandatory=$true)]
+    [string[]]
+    $outputDir
 )
 
 # Check if the folder exists, if it doesn't create it
-$badFolder = "$inputDir\bad"
+$badFolder = "$outputDir"
 
 $videoExts = @(
     ".mov",
