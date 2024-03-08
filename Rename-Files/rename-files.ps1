@@ -1,0 +1,1 @@
+Get-ChildItem -File | ForEach-Object {$newName = $_.Name -replace "-1", ""; Rename-Item -Path $_.FullName -NewName $newName}
