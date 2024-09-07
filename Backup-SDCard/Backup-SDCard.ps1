@@ -8,9 +8,26 @@ param (
     [bool]
     $format = $false
 )
-
+$date = Get-Date
 $global:OS
 $global:separator
+
+if ($IsMacOS){
+    #Write-Host "MacOS"
+    $global:OS = "MacOS"
+    $global:separator = "/"
+}elseif ($IsWindows){
+    #Write-Host "Windows"
+    $global:OS = "Windows"
+    $global:separator = "\"
+}elseif ($IsLinux){
+    #Write-Host "Linux"
+    $global:OS = "Linux"
+    $global:separator = "/"
+}else{
+    Write-Host "What is this running on?"
+}
+
 $global:dngConverter
 $global:rawExts = @(
     ".cr2",
@@ -57,33 +74,23 @@ $global:audioExts = @(
     ".wav",
     ".aac"
 )
-$global:profileExts = @(
-    ".lcs",
-    ".lcse"
+
+$global:cameraProfiles =@(
+    @{
+        "brand" = "Sony" 
+        "ext" = ".dat"
+    },
+    @{
+        "brand" = "Leica"
+        "ext" = ".lcs"
+    }
 )
 
-if ($IsMacOS){
-    #Write-Host "MacOS"
-    $global:OS = "MacOS"
-    $global:separator = "/"
-    $global:dngConverter = "open -a '/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter' --args -c"
-}elseif ($IsWindows){
-    #Write-Host "Windows"
-    $global:OS = "Windows"
-    $global:separator = "\"
-    $global:dngConverter = "'C:\Program Files\Adobe DNG Converter.exe' -c"
-}elseif ($IsLinux){
-    #Write-Host "Linux"
-    $global:OS = "Linux"
-    $global:separator = "/"
-}else{
-    Write-Host "What is this running on?"
-}
 $global:resumeLogPath = "~/Backup-SDCard-Resume.log"
 $global:backupLog = @()
 $global:backupLogPath = "~/Backup-SDCard-Log.log"
 
-function copyFileOfType($file, $type, $parent) {
+function copyFileOfType($inputDir, $file, $type, $parent) {
     # find when it was created
     $dateCreated = $file.CreationTime
     $year = $dateCreated.Year
@@ -101,7 +108,13 @@ function copyFileOfType($file, $type, $parent) {
          + $type + $global:separator
 	
     if ($type -eq "profile"){
-        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator
+        $cameraProfile = $global:cameraProfiles | Where-Object {$_.ext -eq [IO.Path]::GetExtension($fileName)}
+        $cameraBrand = $cameraProfile.brand
+
+        $filePWD = $file.FullName -replace $inputDir, ""
+        $profilePath = $filePWD -replace $fileName, ""
+
+        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $cameraBrand + $profilePath
     }
 
     # Check if the folder exists, if it doesn't create it
@@ -123,6 +136,7 @@ function copyFileOfType($file, $type, $parent) {
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
 
     $logObj = New-Object psobject
+    $logObj | Add-Member -MemberType NoteProperty -Name "Date" -Value $date
     $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
     $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
@@ -169,45 +183,12 @@ function backupSource($inputDir){
     # get all files inside all folders and sub folders
     $files = Get-ChildItem $inputDir -file -Recurse
 
-    $sourceVolume = Get-Volume (($inputDir) -split ":")[0]
     $sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
     $rawFolders = @()
     $fileCount = 0
     $rawFileCount = 0
-    $crawFileCount = 0
     
     # Create reusable func for changing dir based on type
-    function compressDNG($folderName, $outFolderName) {
-        write-host "compressing DNG $folderName"
-        $rawFiles = Get-ChildItem $folderName -file -Recurse
-
-        if (-not (Test-Path $outFolderName)) { 
-            try {
-                new-item $outFolderName -itemtype directory -ErrorAction Stop
-                Write-Host "Created Folder $outFolderName"
-            }
-            catch {
-                Write-Host -ForegroundColor red "Could not create $outFolderName. $_.Exception.Message" 
-            }
-        }
-
-        $doDngConverter = $global:dngConverter + " -d '$outFolderName'"
-
-        foreach ($rawFile in $rawFiles){
-            $filePath = $rawFile.FullName
-            $doDngConverter += " '$filePath'"
-        }
-        
-        Write-Host "dngConverter = $doDngConverter"
-        try {
-            Invoke-Expression $doDngConverter
-            $crawFileCount ++
-        }
-        catch {
-            $fileErrorCount++
-            Write-Host -ForegroundColor red "Could not compress $fileName. $_.Exception.Message"
-        }
-    }
 
     if (Test-Path ($global:resumeLogPath)) {
         $resumeFiles = Import-Csv -Path $global:resumeLogPath -ErrorAction SilentlyContinue
@@ -230,32 +211,32 @@ function backupSource($inputDir){
         Write-Progress -Activity "Progress" -Status "Copying" -PercentComplete $perct
 
         if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
-            copyFileOfType -file $f -type "jpg" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
             #Write-Host "JPG: $f"
         }
         elseIf($global:heifExts -contains $fileExt){
-            copyFileOfType -file $f -type "heif" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "heif" -parent $parent
         }
         elseif ($global:rawExts -contains $fileExt) {
         #elseif ( [IO.Path]::GetExtension($fileName) -eq '.cr3' -or [IO.Path]::GetExtension($fileName) -eq '.raf') {
-            copyFileOfType -file $f -type "raw" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "raw" -parent $parent
             $rawFileCount ++
             #Write-Host "Raw: $f"
         }
         elseif ($global:videoExts -contains $fileExt) {
-            copyFileOfType -file $f -type "video" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "video" -parent $parent
             #Write-Host "Video: $f"
         }
-        elseif ($global:profileExts -contains $fileExt){
-            copyFileOfType -file $f -type "profile" -parent $parent
+        elseif ($global:cameraProfiles.ext -contains $fileExt){
+            copyFileOfType -inputDir $inputDir -file $f -type "profile" -parent $parent
             #Write-Host "Profile: $f"
         }
         elseif ($global:audioExts -contains $fileExt){
-            copyFileOfType -file $f -type "audio" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "audio" -parent $parent
             #Write-Host "Profile: $f"
         }
         else {
-            copyFileOfType -file $f -type "other" -parent $parent
+            copyFileOfType -inputDir $inputDir -file $f -type "other" -parent $parent
             #Write-Host "Other: $f"
         }    
     }
@@ -283,7 +264,7 @@ foreach ($inputDir in $inputDirs){
 }
 
 $global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
-$date = Get-Date
+
 Write-host $date
 
 foreach ($inputDir in $inputDirs){
