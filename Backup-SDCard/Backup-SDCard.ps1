@@ -114,7 +114,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
         $filePWD = $file.FullName -replace $inputDir, ""
         $profilePath = $filePWD -replace $fileName, ""
 
-        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $cameraBrand + $profilePath
+        $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $cameraBrand +  $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $profilePath
     }
 
     # Check if the folder exists, if it doesn't create it
