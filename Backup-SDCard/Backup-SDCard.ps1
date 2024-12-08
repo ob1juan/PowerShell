@@ -4,7 +4,7 @@ param (
     [string[]]
     $inputDirs=@(),
     [string]
-    $outputDir = "s:\Backup\CardBackup",
+    $outputDir,
     [bool]
     $format = $false
 )
@@ -16,14 +16,23 @@ if ($IsMacOS){
     #Write-Host "MacOS"
     $global:OS = "MacOS"
     $global:separator = "/"
+    if ($null -eq $outputDir){
+        $outputDir = "/Volumes/Backup"
+    } 
 }elseif ($IsWindows){
     #Write-Host "Windows"
     $global:OS = "Windows"
     $global:separator = "\"
+    if ($null -eq $outputDir){
+        $outputDir = "B:\Backup"
+    }
 }elseif ($IsLinux){
     #Write-Host "Linux"
     $global:OS = "Linux"
     $global:separator = "/"
+    if ($null -eq $outputDir){
+        $outputDir = "/mnt/Backup"
+    }
 }else{
     Write-Host "What is this running on?"
 }
