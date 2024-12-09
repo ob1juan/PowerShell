@@ -16,21 +16,21 @@ if ($IsMacOS){
     #Write-Host "MacOS"
     $global:OS = "MacOS"
     $global:separator = "/"
-    if ($null -eq $outputDir){
-        $outputDir = "/Volumes/Backup"
+    if ($null -eq $outputDir -or $outputDir -eq ""){
+        $outputDir = "/Volumes/MediaFiles/Photos"
     } 
 }elseif ($IsWindows){
     #Write-Host "Windows"
     $global:OS = "Windows"
     $global:separator = "\"
-    if ($null -eq $outputDir){
+    if ($null -eq $outputDir -or $outputDir -eq ""){
         $outputDir = "B:\Backup"
     }
 }elseif ($IsLinux){
     #Write-Host "Linux"
     $global:OS = "Linux"
     $global:separator = "/"
-    if ($null -eq $outputDir){
+    if ($null -eq $outputDir -or $outputDir -eq ""){
         $outputDir = "/mnt/Backup"
     }
 }else{
@@ -192,7 +192,7 @@ function backupSource($inputDir){
     # get all files inside all folders and sub folders
     $files = Get-ChildItem $inputDir -file -Recurse
 
-    $sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
+    #$sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
     $rawFolders = @()
     $fileCount = 0
     $rawFileCount = 0
@@ -255,20 +255,20 @@ function backupSource($inputDir){
         #compressDNG -folderName $rawFolder -outFolderName $outFolderName
     }
          
-    if ($fileSuccessCount -gt 0 -AND $fileErrorCount -eq 0 -AND $format -eq $true){
+<#     if ($fileSuccessCount -gt 0 -AND $fileErrorCount -eq 0 -AND $format -eq $true){
         $format = Read-Host "Type FORMAT to format the $sourceDriveLetter."
         if ($format -ceq "FORMAT"){
             $label = (Get-Volume -DriveLetter $sourceDriveLetter).FileSystemLabel
             Format-Volume -DriveLetter $sourceDriveLetter -NewFileSystemLabel $label
         }
-    } 
+    }  #>
 
     $filesNotCopied = $global:backupLog | Where-Object {$_.Success -eq $false}
     $filesNotCopied |Export-Csv -Path "~/Backup-SDCard-Resume.log" -NoTypeInformation
 }
 
 foreach ($inputDir in $inputDirs){
-    write-host "Backing up $inputDir"
+    write-host "Backing up $inputDir to $outputDir"
     backupSource -inputDir $inputDir
 }
 
