@@ -17,21 +17,21 @@ if ($IsMacOS){
     $global:OS = "MacOS"
     $global:separator = "/"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "/Volumes/MediaFiles/Photos"
+        $outputDir = "/Volumes/MediaFiles/Photos/Card Backup"
     } 
 }elseif ($IsWindows){
     #Write-Host "Windows"
     $global:OS = "Windows"
     $global:separator = "\"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "B:\Backup"
+        $outputDir = "B:\Backup\Card Backup"
     }
 }elseif ($IsLinux){
     #Write-Host "Linux"
     $global:OS = "Linux"
     $global:separator = "/"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "/mnt/Backup"
+        $outputDir = "/mnt/Backup/Card Backup"
     }
 }else{
     Write-Host "What is this running on?"
