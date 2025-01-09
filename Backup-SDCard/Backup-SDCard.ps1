@@ -81,7 +81,8 @@ $global:videoExts = @(
     ".ogg",
     ".qt",
     ".asf",
-    ".insv"
+    ".insv",
+    ".insp"
 )
 $global:tifExts =@(
     ".tif",
