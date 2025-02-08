@@ -65,7 +65,24 @@ $global:videoExts = @(
     ".mp4",
     ".wmv",
     ".m4v",
-    ".lrv"
+    ".lrv",
+    ".avi",
+    ".mts",
+    ".m2ts",
+    ".mpg",
+    ".mpeg",
+    ".3gp",
+    ".3g2",
+    ".mkv",
+    ".flv",
+    ".webm",
+    ".vob",
+    ".ogv",
+    ".ogg",
+    ".qt",
+    ".asf",
+    ".insv",
+    ".insp"
 )
 $global:tifExts =@(
     ".tif",
