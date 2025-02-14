@@ -17,7 +17,7 @@ if ($IsMacOS){
     $global:OS = "MacOS"
     $global:separator = "/"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "/Volumes/MediaFiles/Photos/Card Backup"
+        $outputDir = "/Volumes/MediaFiles/Archive/Card Backup"
     } 
 }elseif ($IsWindows){
     #Write-Host "Windows"
