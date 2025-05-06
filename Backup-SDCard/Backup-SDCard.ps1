@@ -291,19 +291,20 @@ foreach ($inputDir in $inputDirs){
 
 $global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
 
-Write-host "Script Started: " + $date
+$date = Get-Date
+Write-host "Script Started: " $date
 
 foreach ($inputDir in $inputDirs){
-    $date = Get-Date
-    Write-Host "$inputDir started: " + $date
+    
+    Write-Host "$inputDir started: " $date
 
     $log = $global:backupLog |Where-Object {$_.inputDir -eq $inputDir}
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
     
-    Write-host "Ended: " + (Get-Date)
-    Write-Host "Time taken for $inputDir : " + (Get-Date).Subtract($date).ToString()
+    Write-host "Ended: " (Get-Date)
+    Write-Host "Time taken for $inputDir : " (New-TimeSpanse -Start $date -End (Get-Date) | Select-Object -ExpandProperty TotalSeconds "seconds")
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
     Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
@@ -320,5 +321,5 @@ foreach ($inputDir in $inputDirs){
     }
 }
 
-Write-Host "Total Time taken: " + (Get-Date).Subtract($date).ToString()
+Write-Host "Total Time taken: " (Get-Date).Subtract($date).ToString()
 
