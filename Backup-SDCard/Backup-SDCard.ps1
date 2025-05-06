@@ -162,7 +162,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
 
     $logObj = New-Object psobject
-    $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value Get-Date
+    $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
     $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
     $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
@@ -202,7 +202,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
             $rawFolders += $folderName
         }
     }
-    $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value Get-Date
+    $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value (Get-Date)
     $global:backupLog += $logObj
 }
 
@@ -303,7 +303,7 @@ foreach ($inputDir in $inputDirs){
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
 
-    Write-Host "$inputDir started: " $date
+    Write-Host "$inputDir started: " $startDate
     Write-host "Ended: " $endDate
     Write-Host "Time taken for $inputDir : " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
