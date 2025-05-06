@@ -321,5 +321,5 @@ foreach ($inputDir in $inputDirs){
     }
 }
 
-Write-Host "Total Time taken: " (Get-Date).Subtract($date).ToString()
+Write-Host "Total Time taken: " (New-TimeSpanse -Start $date -End (Get-Date))
 
