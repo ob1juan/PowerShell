@@ -298,7 +298,7 @@ foreach ($inputDir in $inputDirs){
 
     $log = $global:backupLog |Where-Object {$_.inputDir -eq $inputDir}
     $startDate = $log |Select-Object -First 1 -ExpandProperty StartDate
-    $endDate = $log |Select-Object -Last 1 -ExpandProperty EndDate}
+    $endDate = $log |Select-Object -Last 1 -ExpandProperty EndDate
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
