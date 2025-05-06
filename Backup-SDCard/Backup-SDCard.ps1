@@ -162,7 +162,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
 
     $logObj = New-Object psobject
-    $logObj | Add-Member -MemberType NoteProperty -Name "Date" -Value $date
+    $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value Get-Date
     $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
     $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
@@ -202,6 +202,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
             $rawFolders += $folderName
         }
     }
+    $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value Get-Date
     $global:backupLog += $logObj
 }
 
@@ -291,20 +292,20 @@ foreach ($inputDir in $inputDirs){
 
 $global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
 
-$date = Get-Date
 Write-host "Script Started: " $date
 
 foreach ($inputDir in $inputDirs){
-    
-    Write-Host "$inputDir started: " $date
 
     $log = $global:backupLog |Where-Object {$_.inputDir -eq $inputDir}
+    $startDate = $log |Select-Object -First 1 -ExpandProperty StartDate
+    $endDate = $log |Select-Object -Last 1 -ExpandProperty EndDate}
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
-    
-    Write-host "Ended: " (Get-Date)
-    Write-Host "Time taken for $inputDir : " (New-TimeSpanse -Start $date -End (Get-Date) | Select-Object -ExpandProperty TotalSeconds "seconds")
+
+    Write-Host "$inputDir started: " $date
+    Write-host "Ended: " $endDate
+    Write-Host "Time taken for $inputDir : " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
     Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
@@ -321,5 +322,5 @@ foreach ($inputDir in $inputDirs){
     }
 }
 
-Write-Host "Total Time taken: " (New-TimeSpanse -Start $date -End (Get-Date))
+Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End (Get-Date))
 
