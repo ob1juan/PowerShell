@@ -173,11 +173,13 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
             #Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
+            $fileCopyStart = Get-Date
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            $fileCopyEnd = Get-Date
             #Write-Host -ForegroundColor Green "$fileName"
             $destHash = (get-filehash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
-                Write-Host -ForegroundColor Green $filePath "copied and verified."
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd
                 $logObj.Success = $true
             }else{
                 $logObj.Success = $false
