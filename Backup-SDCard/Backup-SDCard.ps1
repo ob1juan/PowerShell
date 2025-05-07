@@ -304,15 +304,15 @@ foreach ($inputDir in $inputDirs){
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
-
-    Write-Host "$inputDir started: " $startDate
+    Write-Host
+    Write-Host "$inputDir "
+    Write-Host "Started: " $startDate
     Write-host "Ended: " $endDate
-    Write-Host "Time taken for $inputDir : " (New-TimeSpan -Start $startDate -End $endDate)
+    Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
     Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
-    Write-Host "------------------------------------------"
-    
+        
     if ($fileErrorCount -gt 0) {
         Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
         <#
@@ -322,6 +322,7 @@ foreach ($inputDir in $inputDirs){
         }
         #>
     }
+    Write-Host "------------------------------------------"
 }
 
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End (Get-Date))
