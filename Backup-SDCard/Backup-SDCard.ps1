@@ -161,11 +161,13 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+    $fileSize = (Get-Item $file).Length
 
     $logObj = New-Object psobject
     $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
     $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
     $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
+    $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value $fileSize
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
     $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $filePath
     $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $fileSuccess
@@ -185,7 +187,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
                 $speedMBps = ($sizeBytes / 1MB) / $timeTaken
 
                 Write-Output "Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
-                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed:" ($speedMBps)
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " ($speedMBps) "Size: " ($fileSize / 1MB) "MB"
                 $logObj.Success = $true
             }else{
                 $logObj.Success = $false
@@ -310,11 +312,13 @@ foreach ($inputDir in $inputDirs){
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
+    $totalSize = $log | Measure-Object -Property FileSize -Sum | Select-Object -ExpandProperty Sum
 
     Write-Host
     Write-Host "$inputDir "
     Write-Host "Started: " $startDate
     Write-host "Ended: " $endDate
+    Write-Host "Total Size: " $totalSize / 1MB
     Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
@@ -331,9 +335,10 @@ foreach ($inputDir in $inputDirs){
     }
     Write-Host "------------------------------------------"
 }
-<# $endDate = Get-Date
+$endDate = Get-Date
 $sizeBytes = $totalSize
 $timeTaken = ($endDate - $date).TotalSeconds
-$speedMBps = ($totalSize / 1MB) / $timeTaken #>
+$speedMBps = ($totalSize / 1MB) / $timeTaken
+Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
 
