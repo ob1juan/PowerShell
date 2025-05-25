@@ -90,6 +90,14 @@ $global:tifExts =@(
     ".psd",
     ".psb"
 )
+$global:jpgExts =@(
+    ".jpg",
+    ".jpeg",
+    ".jpe",
+    ".jif",
+    ".jfif",
+    ".jfi"
+)
 $global:heifExts =@(
     ".hif",
     ".heif",
@@ -250,6 +258,14 @@ function backupSource($inputDir){
         if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
             copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
             #Write-Host "JPG: $f"
+        }
+        elseif ($global:jpgExts -contains $fileExt) {
+            copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
+            #Write-Host "JPG: $f"
+        }
+        elseif ($global:tifExts -contains $fileExt) {
+            copyFileOfType -inputDir $inputDir -file $f -type "tif" -parent $parent
+            #Write-Host "TIF: $f"
         }
         elseIf($global:heifExts -contains $fileExt){
             copyFileOfType -inputDir $inputDir -file $f -type "heif" -parent $parent
