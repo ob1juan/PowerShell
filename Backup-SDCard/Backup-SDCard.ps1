@@ -176,7 +176,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
                 Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
             } #>
         }else{
-            if ((Test-Path -Path $wrongFolderName) -and (Get-ChildItem -Path $wrongFolderName | Where-Object {$_.Name -eq $fileName})){
+            if ((Test-Path -Path $wrongFolderName) -and (Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue)){
                 $file = Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue
                 Write-Host -ForegroundColor DarkGreen "$fileName already exists in modified folder. Moving it to $folderName"
                 # Move the file to the modified folder
