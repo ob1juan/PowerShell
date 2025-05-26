@@ -166,28 +166,38 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
         Write-Host -ForegroundColor Yellow "Moving to modified folder: $modifiedFolderName"
 
         $wrongFolderName = $folderName
-        #$folderName = $modifiedFolderName
+        $folderName = $modifiedFolderName
         # Check if the modified folder exists, if it doesn't create it
         if (-not (Test-Path $folderName)) { 
-<#             try {
+            try {
                 new-item $folderName -itemtype directory -ErrorAction Stop
             }
             catch {
                 Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
-            } #>
+            }
         }else{
             if ((Test-Path -Path $wrongFolderName) -and (Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue)){
                 $file = Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue
                 Write-Host -ForegroundColor DarkGreen "$fileName already exists in modified folder. Moving it to $folderName"
                 # Move the file to the modified folder
-<#                 try {
+                try {
                     Move-Item -Path $file.FullName -Destination $folderName -Force -ErrorAction Stop
                     write-host -ForegroundColor Green "Moved $fileName to $folderName"
                 }
                 catch {
                     Write-Host -ForegroundColor red "Could not move $fileName to $folderName. $_.Exception.Message"
                 }
-                return #>
+                return
+            }else {
+            # Check if the folder exists, if it doesn't create it
+                if (-not (Test-Path $folderName)) { 
+                    try {
+                        new-item $folderName -itemtype directory -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+                    }
+                }
             }
         }
     }else{
