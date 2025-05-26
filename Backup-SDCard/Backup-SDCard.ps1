@@ -155,7 +155,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     # build up the full path inc filename
     $filePath = $folderName + $fileName
     #Write-host -ForegroundColor DarkCyan $parent
-    #Write-Host -ForegroundColor Cyan $filePath
+    Write-Host -ForegroundColor Cyan $filePath
 
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
