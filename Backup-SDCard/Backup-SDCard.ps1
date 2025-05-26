@@ -169,14 +169,14 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
         #$folderName = $modifiedFolderName
         # Check if the modified folder exists, if it doesn't create it
         if (-not (Test-Path $folderName)) { 
-            try {
+<#             try {
                 new-item $folderName -itemtype directory -ErrorAction Stop
             }
             catch {
                 Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
-            }
+            } #>
         }else{
-            if ((Test-Path $wrongFolderName) -and (Get-ChildItem $wrongFolderName | Where-Object {$_.Name -eq $fileName})){
+            if ((Test-Path -Path $wrongFolderName) -and (Get-ChildItem -Path $wrongFolderName | Where-Object {$_.Name -eq $fileName})){
                 $file = Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue
                 Write-Host -ForegroundColor DarkGreen "$fileName already exists in modified folder. Moving it to $folderName"
                 # Move the file to the modified folder
