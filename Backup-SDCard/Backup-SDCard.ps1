@@ -128,6 +128,7 @@ $global:totalSize = 0
 function copyFileOfType($inputDir, $file, $type, $parent) {
     # find when it was created
     $dateCreated = $file.CreationTime
+    $dateModified = $file.LastWriteTime
     $year = $dateCreated.Year
     $day = (Get-Date -Date $dateCreated).ToString("dd")
     $month = (Get-Date -Date $dateCreated).ToString("MM")
@@ -142,6 +143,13 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
          + $type + $global:separator
 	
+    $modifiedYear = $dateModified.Year
+    $modifiedDay = (Get-Date -Date $dateModified).ToString("dd")
+    $modifiedMonth = (Get-Date -Date $dateModified).ToString("MM")
+
+    $modifiedFolderName = $outputDir + $global:separator + $modifiedYear + $global:separator + $modifiedYear + "-" + $modifiedMonth + "-" + $modifiedDay + $global:separator + $parent + $global:separator `
+         + $type + $global:separator
+
     if ($type -eq "profile"){
         $cameraProfile = $global:cameraProfiles | Where-Object {$_.ext -eq [IO.Path]::GetExtension($fileName)}
         $cameraBrand = $cameraProfile.brand
@@ -152,19 +160,53 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
         $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $cameraBrand +  $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $profilePath
     }
 
-    # Check if the folder exists, if it doesn't create it
-    if (-not (Test-Path $folderName)) { 
-        try {
-            new-item $folderName -itemtype directory -ErrorAction Stop
+    #check if in wrong folder
+    if ($modifiedYear -ne $year -or $modifiedMonth -ne $month -or $modifiedDay -ne $day) {
+        Write-Host -ForegroundColor Yellow "File $fileName was modified on $modifiedYear-$modifiedMonth-$modifiedDay."
+        Write-Host -ForegroundColor Yellow "Moving to modified folder: $modifiedFolderName"
+
+        $wrongFolderName = $folderName
+        $folderName = $modifiedFolderName
+        # Check if the modified folder exists, if it doesn't create it
+        if (-not (Test-Path $folderName)) { 
+            try {
+                new-item $folderName -itemtype directory -ErrorAction Stop
+            }
+            catch {
+                Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+            }
+        }else{
+            if (Test-Path $wrongFolderName -and (Get-ChildItem $wrongFolderName | Where-Object {$_.Name -eq $fileName})){
+                $file = Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue
+                Write-Host -ForegroundColor DarkGreen "$fileName already exists in modified folder. Moving it to $folderName"
+                # Move the file to the modified folder
+<#                 try {
+                    Move-Item -Path $file.FullName -Destination $folderName -Force -ErrorAction Stop
+                    write-host -ForegroundColor Green "Moved $fileName to $folderName"
+                }
+                catch {
+                    Write-Host -ForegroundColor red "Could not move $fileName to $folderName. $_.Exception.Message"
+                }
+                return #>
+            }
         }
-        catch {
-            Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+    }else{
+    # Check if the folder exists, if it doesn't create it
+        if (-not (Test-Path $folderName)) { 
+            try {
+                new-item $folderName -itemtype directory -ErrorAction Stop
+            }
+            catch {
+                Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+            }
         }
     }
+
+
     # build up the full path inc filename
     $filePath = $folderName + $fileName
     #Write-host -ForegroundColor DarkCyan $parent
-    Write-Host -ForegroundColor Cyan $filePath
+    #Write-Host -ForegroundColor Cyan $filePath
 
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
