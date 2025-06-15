@@ -380,17 +380,25 @@ foreach ($inputDir in $inputDirs){
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
+    $fileExistCount = $log | Where-Object {$_.Success -eq $true -and $_.Message -eq "File already exists"} | Measure-Object | Select-Object -ExpandProperty Count
+    $newFilesCount = $fileCount - $fileExistCount
     $totalSize = $log | Measure-Object -Property FileSize -Sum | Select-Object -ExpandProperty Sum
 
     Write-Host
     Write-Host "$inputDir "
     Write-Host "Started: " $startDate
     Write-host "Ended: " $endDate
-    Write-Host "Total Size: " $totalSize / 1MB
+    Write-Host "Total Size: " ($totalSize / 1MB) "MB"
     Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
-    Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
+    if ($newFilesCount -gt 0) {
+        Write-Host -ForegroundColor Green "$newFilesCount new files copied."
+    }else{
+        Write-Host -ForegroundColor Yellow "No new files copied."
+    }
+    Write-Host -ForegroundColor Yellow "$fileExistCount files already existed in destination."
+    Write-Host -ForegroundColor Green "$fileSuccessCount total files succssfully copied."
         
     if ($fileErrorCount -gt 0) {
         Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
