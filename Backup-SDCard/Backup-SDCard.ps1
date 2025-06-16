@@ -398,7 +398,7 @@ foreach ($inputDir in $inputDirs){
         Write-Host -ForegroundColor Yellow "No new files copied."
     }
     Write-Host -ForegroundColor Yellow "$fileExistCount files already existed in destination."
-    Write-Host -ForegroundColor Green "$fileSuccessCount total files succssfully copied."
+    Write-Host -ForegroundColor Green "$fileSuccessCount total files succssfully backed up."
         
     if ($fileErrorCount -gt 0) {
         Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
