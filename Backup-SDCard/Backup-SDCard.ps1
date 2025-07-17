@@ -24,14 +24,14 @@ if ($IsMacOS){
     $global:OS = "Windows"
     $global:separator = "\"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "B:\Backup\Card Backup"
+        $outputDir = "S:\Photos\Archive\Card Backup"
     }
 }elseif ($IsLinux){
     #Write-Host "Linux"
     $global:OS = "Linux"
     $global:separator = "/"
     if ($null -eq $outputDir -or $outputDir -eq ""){
-        $outputDir = "/mnt/Backup/Card Backup"
+        $outputDir = "/mnt/MediaFiles/Photos/Archive/Card Backup"
     }
 }else{
     Write-Host "What is this running on?"
@@ -90,6 +90,14 @@ $global:tifExts =@(
     ".psd",
     ".psb"
 )
+$global:jpgExts =@(
+    ".jpg",
+    ".jpeg",
+    ".jpe",
+    ".jif",
+    ".jfif",
+    ".jfi"
+)
 $global:heifExts =@(
     ".hif",
     ".heif",
@@ -115,10 +123,12 @@ $global:cameraProfiles =@(
 $global:resumeLogPath = "~/Backup-SDCard-Resume.log"
 $global:backupLog = @()
 $global:backupLogPath = "~/Backup-SDCard-Log.log"
+$global:totalSize = 0
 
 function copyFileOfType($inputDir, $file, $type, $parent) {
     # find when it was created
     $dateCreated = $file.CreationTime
+    $dateModified = $file.LastWriteTime
     $year = $dateCreated.Year
     $day = (Get-Date -Date $dateCreated).ToString("dd")
     $month = (Get-Date -Date $dateCreated).ToString("MM")
@@ -133,6 +143,13 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $folderName = $outputDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $parent + $global:separator `
          + $type + $global:separator
 	
+    $modifiedYear = $dateModified.Year
+    $modifiedDay = (Get-Date -Date $dateModified).ToString("dd")
+    $modifiedMonth = (Get-Date -Date $dateModified).ToString("MM")
+
+    $modifiedFolderName = $outputDir + $global:separator + $modifiedYear + $global:separator + $modifiedYear + "-" + $modifiedMonth + "-" + $modifiedDay + $global:separator + $parent + $global:separator `
+         + $type + $global:separator
+
     if ($type -eq "profile"){
         $cameraProfile = $global:cameraProfiles | Where-Object {$_.ext -eq [IO.Path]::GetExtension($fileName)}
         $cameraBrand = $cameraProfile.brand
@@ -143,15 +160,59 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
         $folderName = $outputDir + $global:separator + "Profiles" + $global:separator + $cameraBrand +  $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + $profilePath
     }
 
-    # Check if the folder exists, if it doesn't create it
-    if (-not (Test-Path $folderName)) { 
-        try {
-            new-item $folderName -itemtype directory -ErrorAction Stop
+    #check if in wrong folder
+    if ($modifiedYear -ne $year -or $modifiedMonth -ne $month -or $modifiedDay -ne $day) {
+        Write-Host -ForegroundColor Yellow "File $fileName was modified on $modifiedYear-$modifiedMonth-$modifiedDay."
+        Write-Host -ForegroundColor Yellow "Moving to modified folder: $modifiedFolderName"
+
+        $wrongFolderName = $folderName
+        $folderName = $modifiedFolderName
+        # Check if the modified folder exists, if it doesn't create it
+        if (-not (Test-Path $folderName)) { 
+            try {
+                new-item $folderName -itemtype directory -ErrorAction Stop
+            }
+            catch {
+                Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+            }
+        }else{
+            if ((Test-Path -Path $wrongFolderName) -and (Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue)){
+                $file = Get-ChildItem -Path $wrongFolderName -Filter $fileName -File -ErrorAction SilentlyContinue
+                Write-Host -ForegroundColor DarkGreen "$fileName already exists in modified folder. Moving it to $folderName"
+                # Move the file to the modified folder
+                try {
+                    Move-Item -Path $file.FullName -Destination $folderName -Force -ErrorAction Stop
+                    write-host -ForegroundColor Green "Moved $fileName to $folderName"
+                }
+                catch {
+                    Write-Host -ForegroundColor red "Could not move $fileName to $folderName. $_.Exception.Message"
+                }
+                return
+            }else {
+            # Check if the folder exists, if it doesn't create it
+                if (-not (Test-Path $folderName)) { 
+                    try {
+                        new-item $folderName -itemtype directory -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+                    }
+                }
+            }
         }
-        catch {
-            Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+    }else{
+    # Check if the folder exists, if it doesn't create it
+        if (-not (Test-Path $folderName)) { 
+            try {
+                new-item $folderName -itemtype directory -ErrorAction Stop
+            }
+            catch {
+                Write-Host -ForegroundColor red "Could not create $folderName. $_.Exception.Message" 
+            }
         }
     }
+
+
     # build up the full path inc filename
     $filePath = $folderName + $fileName
     #Write-host -ForegroundColor DarkCyan $parent
@@ -160,11 +221,13 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
     $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+    $fileSize = (Get-Item $file).Length
 
     $logObj = New-Object psobject
-    $logObj | Add-Member -MemberType NoteProperty -Name "Date" -Value $date
+    $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
     $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
     $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
+    $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value $fileSize
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
     $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $filePath
     $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $fileSuccess
@@ -173,11 +236,18 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
             #Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
+            $fileCopyStart = Get-Date
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            $fileCopyEnd = Get-Date
             #Write-Host -ForegroundColor Green "$fileName"
             $destHash = (get-filehash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
-                Write-Host -ForegroundColor Green $filePath "copied and verified."
+                $sizeBytes = (Get-Item $file).Length
+                $timeTaken = ($fileCopyEnd - $fileCopyStart).TotalSeconds
+                $speedMBps = ($sizeBytes / 1MB) / $timeTaken
+
+                Write-Output "Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " ($speedMBps) "Size: " ($fileSize / 1MB) "MB"
                 $logObj.Success = $true
             }else{
                 $logObj.Success = $false
@@ -202,6 +272,7 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
             $rawFolders += $folderName
         }
     }
+    $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value (Get-Date)
     $global:backupLog += $logObj
 }
 
@@ -239,6 +310,14 @@ function backupSource($inputDir){
         if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
             copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
             #Write-Host "JPG: $f"
+        }
+        elseif ($global:jpgExts -contains $fileExt) {
+            copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
+            #Write-Host "JPG: $f"
+        }
+        elseif ($global:tifExts -contains $fileExt) {
+            copyFileOfType -inputDir $inputDir -file $f -type "tif" -parent $parent
+            #Write-Host "TIF: $f"
         }
         elseIf($global:heifExts -contains $fileExt){
             copyFileOfType -inputDir $inputDir -file $f -type "heif" -parent $parent
@@ -291,24 +370,36 @@ foreach ($inputDir in $inputDirs){
 
 $global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
 
-Write-host "Script Started: " + $date
+Write-host "Script Started: " $date
 
 foreach ($inputDir in $inputDirs){
-    $date = Get-Date
-    Write-Host "$inputDir started: " + $date
 
     $log = $global:backupLog |Where-Object {$_.inputDir -eq $inputDir}
+    $startDate = $log |Select-Object -First 1 -ExpandProperty StartDate
+    $endDate = $log |Select-Object -Last 1 -ExpandProperty EndDate
     $fileCount = $log |Where-Object {$_.inputDir -eq $inputDir} | Measure-Object | Select-Object -ExpandProperty Count
     $fileSuccessCount = $log | Where-Object {$_.Success -eq $true} | Measure-Object | Select-Object -ExpandProperty Count
     $fileErrorCount = $log | Where-Object {$_.Success -eq $false} | Measure-Object | Select-Object -ExpandProperty Count
-    
-    Write-host "Ended: " + (Get-Date)
-    Write-Host "Time taken for $inputDir : " + (Get-Date).Subtract($date).ToString()
+    $fileExistCount = $log | Where-Object {$_.Success -eq $true -and $_.Message -eq "File already exists"} | Measure-Object | Select-Object -ExpandProperty Count
+    $newFilesCount = $fileCount - $fileExistCount
+    $totalSize = $log | Measure-Object -Property FileSize -Sum | Select-Object -ExpandProperty Sum
+
+    Write-Host
+    Write-Host "$inputDir "
+    Write-Host "Started: " $startDate
+    Write-host "Ended: " $endDate
+    Write-Host "Total Size: " ($totalSize / 1MB) "MB"
+    Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
-    Write-Host -ForegroundColor Green "$fileSuccessCount files succssfully copied."
-    Write-Host "------------------------------------------"
-    
+    if ($newFilesCount -gt 0) {
+        Write-Host -ForegroundColor Green "$newFilesCount new files copied."
+    }else{
+        Write-Host -ForegroundColor Yellow "No new files copied."
+    }
+    Write-Host -ForegroundColor Yellow "$fileExistCount files already existed in destination."
+    Write-Host -ForegroundColor Green "$fileSuccessCount total files succssfully backed up."
+        
     if ($fileErrorCount -gt 0) {
         Write-Host -ForegroundColor Red "$fileErrorCount files could not be copied."
         <#
@@ -318,7 +409,12 @@ foreach ($inputDir in $inputDirs){
         }
         #>
     }
+    Write-Host "------------------------------------------"
 }
-
-Write-Host "Total Time taken: " + (Get-Date).Subtract($date).ToString()
+$endDate = Get-Date
+$sizeBytes = $totalSize
+$timeTaken = ($endDate - $date).TotalSeconds
+$speedMBps = ($totalSize / 1MB) / $timeTaken
+Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
+Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
 
