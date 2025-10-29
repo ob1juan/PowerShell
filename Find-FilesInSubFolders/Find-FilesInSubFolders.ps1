@@ -1,6 +1,6 @@
 # Define source and destination folders
-$sourceFolder = "C:\SourceFolder"
-$destinationFolder = "C:\DestinationFolder"
+$sourceFolder = "/Volumes/CrucialX104TB/Cleanup/LRCC 07 2023"
+$destinationFolder = "/Volumes/CrucialX104TB/Cleanup/From LRCC"
 
 # Get all filenames in destination folder (recursively)
 $existingDestFileNames = Get-ChildItem -Path $destinationFolder -Recurse -File | Select-Object -ExpandProperty Name
