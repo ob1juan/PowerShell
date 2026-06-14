@@ -57,7 +57,7 @@ if ($copyToPhotosInProgress){
     }
 
     $photosInProgressVolumePath = $photosInProgressVolumePath.TrimEnd([char[]]@( '\', '/' ))
-    if ($photosInProgressVolumePath -match "(?i)(^|[\\/])Card Backup$"){
+    if ($photosInProgressVolumePath -match "(?i)(^|[\\/])Temp Card Backup$"){
         $global:photosInProgressDir = $photosInProgressVolumePath
     }else{
         $global:photosInProgressDir = $photosInProgressVolumePath + $global:separator + "Card Backup"
