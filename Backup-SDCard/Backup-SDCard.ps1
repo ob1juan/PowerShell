@@ -6,11 +6,16 @@ param (
     [string]
     $outputDir,
     [bool]
-    $format = $false
+    $format = $false,
+    [switch]
+    $copyToPhotosInProgress,
+    [string]
+    $photosInProgressVolumePath
 )
 $date = Get-Date
 $global:OS
 $global:separator
+$global:photosInProgressDir
 
 if ($IsMacOS){
     #Write-Host "MacOS"
@@ -19,12 +24,18 @@ if ($IsMacOS){
     if ($null -eq $outputDir -or $outputDir -eq ""){
         $outputDir = "/Volumes/MediaFiles/Card Backup"
     } 
+    if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
+        $photosInProgressVolumePath = "/Volumes/Photos-InProgress"
+    }
 }elseif ($IsWindows){
     #Write-Host "Windows"
     $global:OS = "Windows"
     $global:separator = "\"
     if ($null -eq $outputDir -or $outputDir -eq ""){
         $outputDir = "S:\Card Backup"
+    }
+    if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
+        $photosInProgressVolumePath = "e:"
     }
 }elseif ($IsLinux){
     #Write-Host "Linux"
@@ -33,8 +44,24 @@ if ($IsMacOS){
     if ($null -eq $outputDir -or $outputDir -eq ""){
         $outputDir = "/mnt/MediaFiles/Card Backup"
     }
+    if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
+        $photosInProgressVolumePath = "/mnt/Photos-InProgress"
+    }
 }else{
     Write-Host "What is this running on?"
+}
+
+if ($copyToPhotosInProgress){
+    if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
+        throw "Could not determine a Photos-InProgress volume path for this operating system."
+    }
+
+    $photosInProgressVolumePath = $photosInProgressVolumePath.TrimEnd([char[]]@( '\', '/' ))
+    if ($photosInProgressVolumePath -match "(?i)(^|[\\/])Card Backup$"){
+        $global:photosInProgressDir = $photosInProgressVolumePath
+    }else{
+        $global:photosInProgressDir = $photosInProgressVolumePath + $global:separator + "Card Backup"
+    }
 }
 
 $global:dngConverter
@@ -124,6 +151,92 @@ $global:resumeLogPath = "~/Backup-SDCard-Resume.log"
 $global:backupLog = @()
 $global:backupLogPath = "~/Backup-SDCard-Log.log"
 $global:totalSize = 0
+
+function ensureDirectory($folderPath) {
+    if (-not (Test-Path $folderPath)) {
+        try {
+            New-Item $folderPath -ItemType Directory -ErrorAction Stop | Out-Null
+        }
+        catch {
+            Write-Host -ForegroundColor red "Could not create $folderPath. $($_.Exception.Message)"
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function getMirroredFilePath($filePath, $sourceRoot, $destinationRoot) {
+    $trimmedSourceRoot = $sourceRoot.TrimEnd([char[]]@( '\', '/' ))
+    $trimmedDestinationRoot = $destinationRoot.TrimEnd([char[]]@( '\', '/' ))
+    $relativeFilePath = $filePath.Substring($trimmedSourceRoot.Length).TrimStart([char[]]@( '\', '/' ))
+
+    return $trimmedDestinationRoot + $global:separator + $relativeFilePath
+}
+
+function copyVerifiedFile($file, $filePath, $sourceHash, $targetName) {
+    $fileName = $file.Name
+    $fileSize = (Get-Item $file).Length
+    $folderPath = Split-Path -Path $filePath -Parent
+
+    if (-not (ensureDirectory -folderPath $folderPath)) {
+        return [pscustomobject]@{
+            Success = $false
+            Message = "Could not create $folderPath"
+        }
+    }
+
+    $destHash = (Get-FileHash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+
+    if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
+        try {
+            $fileCopyStart = Get-Date
+            Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            $fileCopyEnd = Get-Date
+            $destHash = (Get-FileHash $filePath -Algorithm md5).Hash
+            if ($sourceHash -eq $destHash){
+                $timeTaken = ($fileCopyEnd - $fileCopyStart).TotalSeconds
+                if ($timeTaken -gt 0){
+                    $speedMBps = ($fileSize / 1MB) / $timeTaken
+                }else{
+                    $speedMBps = 0
+                }
+
+                Write-Output "$targetName Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " ($speedMBps) "Size: " ($fileSize / 1MB) "MB"
+
+                return [pscustomobject]@{
+                    Success = $true
+                    Message = $null
+                }
+            }else{
+                $message = "checksum does not match $fileName"
+                Write-Host -ForegroundColor red $message
+
+                return [pscustomobject]@{
+                    Success = $false
+                    Message = $message
+                }
+            }
+        }
+        catch {
+            $message = "Could not copy file $fileName to $filePath. $($_.Exception.Message)"
+            Write-Host -ForegroundColor red $message
+
+            return [pscustomobject]@{
+                Success = $false
+                Message = $message
+            }
+        }    
+    }else {
+        Write-Host -ForegroundColor DarkGreen "$fileName already exists in $targetName."
+
+        return [pscustomobject]@{
+            Success = $true
+            Message = "File already exists"
+        }
+    }
+}
 
 function copyFileOfType($inputDir, $file, $type, $parent) {
     # find when it was created
@@ -220,7 +333,6 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
 
     # If it's not already copied, copy it
     $sourceHash = (get-filehash $file.FullName -Algorithm md5).Hash
-    $destHash = (get-filehash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
     $fileSize = (Get-Item $file).Length
 
     $logObj = New-Object psobject
@@ -230,41 +342,29 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value $fileSize
     $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
     $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $filePath
-    $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $fileSuccess
-    $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value $fileError
+    $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressDestination" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressSuccess" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressMessage" -Value $null
 
-    if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
-        try {
-            #Write-Host -ForegroundColor Yellow "sourceHash $sourceHash / destHash $destHash"
-            $fileCopyStart = Get-Date
-            Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
-            $fileCopyEnd = Get-Date
-            #Write-Host -ForegroundColor Green "$fileName"
-            $destHash = (get-filehash $filePath -Algorithm md5).Hash
-            if ($sourceHash -eq $destHash){
-                $sizeBytes = (Get-Item $file).Length
-                $timeTaken = ($fileCopyEnd - $fileCopyStart).TotalSeconds
-                $speedMBps = ($sizeBytes / 1MB) / $timeTaken
+    $primaryCopyResult = copyVerifiedFile -file $file -filePath $filePath -sourceHash $sourceHash -targetName "Primary destination"
+    $logObj.Success = $primaryCopyResult.Success
+    $logObj.Message = $primaryCopyResult.Message
 
-                Write-Output "Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
-                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " ($speedMBps) "Size: " ($fileSize / 1MB) "MB"
-                $logObj.Success = $true
-            }else{
-                $logObj.Success = $false
-                $logObj.Message = "checksum does not match $fileName. $_.Exception.Message"
+    if ($copyToPhotosInProgress){
+        $photosInProgressFilePath = getMirroredFilePath -filePath $filePath -sourceRoot $outputDir -destinationRoot $global:photosInProgressDir
+        $photosInProgressCopyResult = copyVerifiedFile -file $file -filePath $photosInProgressFilePath -sourceHash $sourceHash -targetName "Photos-InProgress destination"
 
-                Write-Host -ForegroundColor red "checksum does not match $fileName. $_.Exception.Message"
-            }
-        }
-        catch {
+        $logObj.PhotosInProgressDestination = $photosInProgressFilePath
+        $logObj.PhotosInProgressSuccess = $photosInProgressCopyResult.Success
+        $logObj.PhotosInProgressMessage = $photosInProgressCopyResult.Message
+
+        if (-not $photosInProgressCopyResult.Success){
             $logObj.Success = $false
-            $logObj.Message = "Could not copy file $fileName. $_.Exception.Message"
-            Write-Host -ForegroundColor red "Could not copy file $fileName. $_.Exception.Message"
-        }    
-    }else {
-        Write-Host -ForegroundColor DarkGreen "$fileName already exists."
-        $logObj.Success = $true
-        $logObj.Message = "File already exists"
+            $messages = @($logObj.Message, $photosInProgressCopyResult.Message) | Where-Object { $null -ne $_ -and $_ -ne "" }
+            $logObj.Message = $messages -join "; "
+        }
     }
 
     if ($type -eq "raw"){
@@ -365,6 +465,9 @@ function backupSource($inputDir){
 
 foreach ($inputDir in $inputDirs){
     write-host "Backing up $inputDir to $outputDir"
+    if ($copyToPhotosInProgress){
+        Write-Host "Also copying imported files to $global:photosInProgressDir"
+    }
     backupSource -inputDir $inputDir
 }
 
