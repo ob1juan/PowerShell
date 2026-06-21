@@ -25,7 +25,7 @@ if ($IsMacOS){
         $outputDir = "/Volumes/MediaFiles/Card Backup"
     } 
     if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
-        $photosInProgressVolumePath = "/Volumes/Photos-InProgress"
+        $photosInProgressVolumePath = "'/Volumes/Photos-InProgress/Photo Library/In Progress/'"
     }
 }elseif ($IsWindows){
     #Write-Host "Windows"
@@ -35,7 +35,7 @@ if ($IsMacOS){
         $outputDir = "S:\Card Backup"
     }
     if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
-        $photosInProgressVolumePath = "e:"
+        $photosInProgressVolumePath = "e:\Photos-InProgress\Photo Library\In Progress\"
     }
 }elseif ($IsLinux){
     #Write-Host "Linux"
