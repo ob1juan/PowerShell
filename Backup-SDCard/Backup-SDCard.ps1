@@ -1,3 +1,35 @@
+<#
+.SYNOPSIS
+    Backs up SD card contents to a structured destination directory.
+
+.PARAMETER inputDirs
+    One or more source directories to back up (e.g. the SD card root).
+
+.PARAMETER outputDir
+    Destination root directory. Defaults to a platform-specific path when omitted.
+
+.PARAMETER format
+    When $true, prompts to format the source drive after a successful backup.
+
+.PARAMETER copyToPhotosInProgress
+    Also copy imported files to a Photos-InProgress volume.
+
+.PARAMETER photosInProgressVolumePath
+    Override the default Photos-InProgress volume path.
+
+.PARAMETER dateFilter
+    Limit which files are imported by their last-write date. Accepts the following
+    shortcuts (case-insensitive) or an explicit date string (e.g. "2024-01-15"):
+
+        Today          – files written today
+        Past Week      – files written in the last 7 days
+        Past Month     – files written within the last calendar month
+        Past 3 Months  – files written in the last 3 calendar months
+        Past Year      – files written in the last 12 calendar months
+
+    When omitted, all files are processed (existing behaviour).
+    Filtering is based on each file's LastWriteTime.
+#>
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
@@ -10,7 +42,11 @@ param (
     [switch]
     $copyToPhotosInProgress,
     [string]
-    $photosInProgressVolumePath
+    $photosInProgressVolumePath,
+    # Optional date filter. Accepts shortcuts (Today, Past Week, Past Month,
+    # Past 3 Months, Past Year) or an explicit date string (e.g. "2024-01-15").
+    [string]
+    $dateFilter
 )
 $date = Get-Date
 $global:OS
@@ -151,6 +187,49 @@ $global:resumeLogPath = "~/Backup-SDCard-Resume.log"
 $global:backupLog = @()
 $global:backupLogPath = "~/Backup-SDCard-Log.log"
 $global:totalSize = 0
+
+# Resolves the $dateFilter parameter to a [DateTime] start date.
+# Returns $null when no filter is specified (all files are processed).
+# Supported shortcuts: Today, Past Week, Past Month, Past 3 Months, Past Year.
+# An explicit date string (e.g. "2024-01-15") is also accepted.
+function getDateFilterStart {
+    param([string]$filter)
+
+    if ([string]::IsNullOrWhiteSpace($filter)) {
+        return $null
+    }
+
+    $today = (Get-Date).Date
+
+    switch ($filter.ToLower().Trim()) {
+        "today"          { return $today }
+        "past week"      { return $today.AddDays(-7) }
+        "pastweek"       { return $today.AddDays(-7) }
+        "past month"     { return $today.AddMonths(-1) }
+        "pastmonth"      { return $today.AddMonths(-1) }
+        "past 3 months"  { return $today.AddMonths(-3) }
+        "past3months"    { return $today.AddMonths(-3) }
+        "past year"      { return $today.AddYears(-1) }
+        "pastyear"       { return $today.AddYears(-1) }
+        default {
+            # Try to parse as an explicit date.
+            # $parsed must be typed as [datetime] so PowerShell can resolve the TryParse overload.
+            [datetime]$parsed = [datetime]::MinValue
+            if ([datetime]::TryParse($filter, [ref]$parsed)) {
+                return $parsed.Date
+            }
+            throw "Invalid -dateFilter value: '$filter'. " +
+                  "Use Today, 'Past Week', 'Past Month', 'Past 3 Months', 'Past Year', " +
+                  "or an explicit date string such as '2024-01-15'."
+        }
+    }
+}
+
+# Resolve the date filter once; $null means no filtering (all files are processed).
+$filterStartDate = getDateFilterStart -filter $dateFilter
+if ($null -ne $filterStartDate) {
+    Write-Host "Date filter active: only files with LastWriteTime on or after $($filterStartDate.ToString('yyyy-MM-dd')) will be imported."
+}
 
 function ensureDirectory($folderPath) {
     if (-not (Test-Path $folderPath)) {
@@ -379,6 +458,16 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
 function backupSource($inputDir){
     # get all files inside all folders and sub folders
     $files = Get-ChildItem $inputDir -file -Recurse
+
+    # Apply date filter when -dateFilter was specified.
+    # Filtering uses LastWriteTime (the date content was last written, which on
+    # camera cards corresponds to when the photo/video was captured).
+    if ($null -ne $filterStartDate) {
+        # $filterStartDate is already normalised to midnight, so comparing
+        # LastWriteTime directly includes all files on or after that date.
+        $files = $files.Where({ $_.LastWriteTime -ge $filterStartDate })
+        Write-Host "Date filter applied: $($files.Count) file(s) on or after $($filterStartDate.ToString('yyyy-MM-dd')) found in $inputDir."
+    }
 
     #$sourceDriveLetter = (Get-Volume (($inputDir) -split ":")[0]).DriveLetter
     $rawFolders = @()
