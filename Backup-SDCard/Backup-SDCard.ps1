@@ -23,7 +23,7 @@
 
         Today          – files written today
         Past Week      – files written in the last 7 days
-        Past Month     – files written in the last 30 days (1 calendar month)
+        Past Month     – files written within the last calendar month
         Past 3 Months  – files written in the last 3 calendar months
         Past Year      – files written in the last 12 calendar months
 
@@ -462,7 +462,7 @@ function backupSource($inputDir){
     # Filtering uses LastWriteTime (the date content was last written, which on
     # camera cards corresponds to when the photo/video was captured).
     if ($null -ne $filterStartDate) {
-        $files = $files | Where-Object { $_.LastWriteTime.Date -ge $filterStartDate }
+        $files = $files.Where({ $_.LastWriteTime.Date -ge $filterStartDate })
         Write-Host "Date filter applied: $($files.Count) file(s) on or after $($filterStartDate.ToString('yyyy-MM-dd')) found in $inputDir."
     }
 
