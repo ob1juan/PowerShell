@@ -201,7 +201,7 @@ function getDateFilterStart {
 
     $today = (Get-Date).Date
 
-    switch -Wildcard ($filter.ToLower().Trim()) {
+    switch ($filter.ToLower().Trim()) {
         "today"          { return $today }
         "past week"      { return $today.AddDays(-7) }
         "pastweek"       { return $today.AddDays(-7) }
@@ -462,7 +462,9 @@ function backupSource($inputDir){
     # Filtering uses LastWriteTime (the date content was last written, which on
     # camera cards corresponds to when the photo/video was captured).
     if ($null -ne $filterStartDate) {
-        $files = $files.Where({ $_.LastWriteTime.Date -ge $filterStartDate })
+        # $filterStartDate is already normalised to midnight, so comparing
+        # LastWriteTime directly includes all files on or after that date.
+        $files = $files.Where({ $_.LastWriteTime -ge $filterStartDate })
         Write-Host "Date filter applied: $($files.Count) file(s) on or after $($filterStartDate.ToString('yyyy-MM-dd')) found in $inputDir."
     }
 
