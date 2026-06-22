@@ -212,8 +212,9 @@ function getDateFilterStart {
         "past year"      { return $today.AddYears(-1) }
         "pastyear"       { return $today.AddYears(-1) }
         default {
-            # Try to parse as an explicit date
-            $parsed = [datetime]::MinValue
+            # Try to parse as an explicit date.
+            # $parsed must be typed as [datetime] so PowerShell can resolve the TryParse overload.
+            [datetime]$parsed = [datetime]::MinValue
             if ([datetime]::TryParse($filter, [ref]$parsed)) {
                 return $parsed.Date
             }
