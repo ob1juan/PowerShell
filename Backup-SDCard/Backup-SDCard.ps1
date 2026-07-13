@@ -15,7 +15,8 @@
     Also copy imported files to a Photos-InProgress volume.
 
 .PARAMETER photosInProgressVolumePath
-    Override the default Photos-InProgress volume path.
+    Override the default Photos-InProgress path. When the path does not end in
+    Temp Card Backup, that folder is appended.
 
 .PARAMETER dateFilter
     Limit which files are imported by their last-write date. Accepts the following
@@ -52,6 +53,7 @@ $date = Get-Date
 $global:OS
 $global:separator
 $global:photosInProgressDir
+$photosInProgressBackupFolderName = "Temp Card Backup"
 
 if ($IsMacOS){
     #Write-Host "MacOS"
@@ -61,7 +63,7 @@ if ($IsMacOS){
         $outputDir = "/Volumes/MediaFiles/Card Backup"
     } 
     if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
-        $photosInProgressVolumePath = "'/Volumes/Photos-InProgress/Photo Library/In Progress/'"
+        $photosInProgressVolumePath = "/Volumes/Photos-InProgress/Photo Library/In Progress/Temp Card Backup"
     }
 }elseif ($IsWindows){
     #Write-Host "Windows"
@@ -96,7 +98,7 @@ if ($copyToPhotosInProgress){
     if ($photosInProgressVolumePath -match "(?i)(^|[\\/])Temp Card Backup$"){
         $global:photosInProgressDir = $photosInProgressVolumePath
     }else{
-        $global:photosInProgressDir = $photosInProgressVolumePath + $global:separator + "Card Backup"
+        $global:photosInProgressDir = $photosInProgressVolumePath + $global:separator + $photosInProgressBackupFolderName
     }
 }
 
@@ -609,4 +611,3 @@ $timeTaken = ($endDate - $date).TotalSeconds
 $speedMBps = ($totalSize / 1MB) / $timeTaken
 Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
-
