@@ -283,8 +283,9 @@ function copyVerifiedFile($file, $filePath, $sourceHash, $targetName) {
                     $speedMBps = 0
                 }
 
-                Write-Output "$targetName Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
-                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " ($speedMBps) "Size: " ($fileSize / 1MB) "MB"
+                $roundedSpeedMBps = [math]::Round($speedMBps, 0)
+                Write-Output "$targetName Transfer Speed: $roundedSpeedMBps MB/s"
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " $roundedSpeedMBps "MB/s Size: " ($fileSize / 1MB) "MB"
 
                 return [pscustomobject]@{
                     Success = $true
@@ -609,5 +610,5 @@ $endDate = Get-Date
 $sizeBytes = $totalSize
 $timeTaken = ($endDate - $date).TotalSeconds
 $speedMBps = ($totalSize / 1MB) / $timeTaken
-Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 2)) MB/s"
+Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 0)) MB/s"
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
