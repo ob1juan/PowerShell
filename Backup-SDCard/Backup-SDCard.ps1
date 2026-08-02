@@ -89,9 +89,27 @@ if ($IsMacOS){
     Write-Host "What is this running on?"
 }
 
+# Sanitize path parameters — strip surrounding shell-quote characters that may
+# have been included literally when the script is invoked from a shell or
+# another script (e.g. "'/Volumes/...'" passed inside double quotes).
+$outputDir               = $outputDir.Trim([char[]]@("'", '"'))
+if ($photosInProgressVolumePath) {
+    $photosInProgressVolumePath = $photosInProgressVolumePath.Trim([char[]]@("'", '"'))
+}
+
+# Validate that $outputDir is an absolute path to prevent accidental writes
+# relative to the current working directory.
+if (-not [System.IO.Path]::IsPathRooted($outputDir)) {
+    throw "-outputDir '$outputDir' is not an absolute path. Provide a full path (e.g. /Volumes/MediaFiles/Card Backup)."
+}
+
 if ($copyToPhotosInProgress){
     if ($null -eq $photosInProgressVolumePath -or $photosInProgressVolumePath -eq ""){
         throw "Could not determine a Photos-InProgress volume path for this operating system."
+    }
+
+    if (-not [System.IO.Path]::IsPathRooted($photosInProgressVolumePath)) {
+        throw "-photosInProgressVolumePath '$photosInProgressVolumePath' is not an absolute path."
     }
 
     $photosInProgressVolumePath = $photosInProgressVolumePath.TrimEnd([char[]]@( '\', '/' ))
@@ -250,6 +268,11 @@ function ensureDirectory($folderPath) {
 function getMirroredFilePath($filePath, $sourceRoot, $destinationRoot) {
     $trimmedSourceRoot = $sourceRoot.TrimEnd([char[]]@( '\', '/' ))
     $trimmedDestinationRoot = $destinationRoot.TrimEnd([char[]]@( '\', '/' ))
+
+    if (-not $filePath.StartsWith($trimmedSourceRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Cannot mirror '$filePath': path does not start with source root '$trimmedSourceRoot'."
+    }
+
     $relativeFilePath = $filePath.Substring($trimmedSourceRoot.Length).TrimStart([char[]]@( '\', '/' ))
 
     return $trimmedDestinationRoot + $global:separator + $relativeFilePath
