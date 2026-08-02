@@ -31,9 +31,9 @@
     When omitted, all files are processed (existing behaviour).
     Filtering is based on each file's LastWriteTime.
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding=$false)]
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)]
     [string[]]
     $inputDirs=@(),
     [string]
