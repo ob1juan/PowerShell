@@ -9,7 +9,7 @@
     Destination root directory. Defaults to a platform-specific path when omitted.
 
 .PARAMETER format
-    When $true, prompts to format the source drive after a successful backup.
+    When specified, prompts to format the source drive after a successful backup.
 
 .PARAMETER copyToPhotosInProgress
     Also copy imported files to a Photos-InProgress volume.
@@ -38,8 +38,8 @@ param (
     $inputDirs=@(),
     [string]
     $outputDir,
-    [bool]
-    $format = $false,
+    [switch]
+    $format,
     [switch]
     $copyToPhotosInProgress,
     [string]
