@@ -30,10 +30,26 @@
 
     When omitted, all files are processed (existing behaviour).
     Filtering is based on each file's LastWriteTime.
+
+.PARAMETER backupForOrion
+    When specified, JPG files are copied only into a flat Orion folder
+    instead of the normal dated jpg destination (no duplicate copy is made).
+
+.PARAMETER orionBackupPath
+    Destination folder for Orion JPGs. Defaults to an "Orion" subfolder inside
+    -outputDir when not specified.
+
+.PARAMETER backupForLeicaM
+    Imports photos from a Leica M EV1 or M11 connected over USB. These cameras
+    use PTP and do not mount as a volume, so files are pulled with the
+    'gphoto2' command-line tool (install via Homebrew on macOS or your distro's
+    package manager on Linux; Windows requires WSL2) into a temporary staging
+    folder, then processed through the normal dated backup pipeline like any
+    other -inputDirs entry. -inputDirs is optional when this switch is used.
 #>
 [CmdletBinding(PositionalBinding=$false)]
 param (
-    [Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)]
+    [Parameter(Mandatory=$false, ValueFromRemainingArguments=$true)]
     [string[]]
     $inputDirs=@(),
     [string]
@@ -47,7 +63,13 @@ param (
     # Optional date filter. Accepts shortcuts (Today, Past Week, Past Month,
     # Past 3 Months, Past Year) or an explicit date string (e.g. "2024-01-15").
     [string]
-    $dateFilter
+    $dateFilter,
+    [switch]
+    $backupForOrion,
+    [string]
+    $orionBackupPath,
+    [switch]
+    $backupForLeicaM
 )
 $date = Get-Date
 $global:OS
@@ -117,6 +139,19 @@ if ($copyToPhotosInProgress){
         $global:photosInProgressDir = $photosInProgressVolumePath
     }else{
         $global:photosInProgressDir = $photosInProgressVolumePath + $global:separator + $photosInProgressBackupFolderName
+    }
+}
+
+$global:orionBackupDir
+if ($backupForOrion){
+    if ($orionBackupPath){
+        $orionBackupPath = $orionBackupPath.Trim([char[]]@("'", '"'))
+        if (-not [System.IO.Path]::IsPathRooted($orionBackupPath)) {
+            throw "-orionBackupPath '$orionBackupPath' is not an absolute path."
+        }
+        $global:orionBackupDir = $orionBackupPath.TrimEnd([char[]]@( '\', '/' ))
+    }else{
+        $global:orionBackupDir = $outputDir.TrimEnd([char[]]@( '\', '/' )) + $global:separator + "Orion"
     }
 }
 
@@ -500,6 +535,123 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $global:backupLog += $logObj
 }
 
+# Copies a JPG straight into the flat Orion folder (no date subfolders),
+# instead of the normal dated jpg destination, to avoid keeping two copies of
+# every JPG on disk. If a different file already occupies that filename (e.g.
+# the same filename came from another card/session), a numbered suffix is
+# used instead of silently overwriting unrelated content.
+function copyFileToOrion($inputDir, $file, $parent) {
+    $fileName = $file.Name
+
+    if (-not (ensureDirectory -folderPath $global:orionBackupDir)) {
+        $logObj = New-Object psobject
+        $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
+        $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
+        $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
+        $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value (Get-Item $file).Length
+        $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
+        $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $global:orionBackupDir
+        $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $false
+        $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value "Could not create $global:orionBackupDir"
+        $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value (Get-Date)
+        $global:backupLog += $logObj
+        return
+    }
+
+    $sourceHash = (Get-FileHash $file.FullName -Algorithm md5).Hash
+    $fileSize = (Get-Item $file).Length
+    $filePath = $global:orionBackupDir + $global:separator + $fileName
+
+    if (Test-Path $filePath) {
+        $existingHash = (Get-FileHash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+        if ($existingHash -ne $sourceHash) {
+            $baseName = [IO.Path]::GetFileNameWithoutExtension($fileName)
+            $ext = [IO.Path]::GetExtension($fileName)
+            $counter = 1
+            $resolved = $false
+            while (-not $resolved) {
+                $candidatePath = $global:orionBackupDir + $global:separator + "$baseName`_$counter$ext"
+                if (-not (Test-Path $candidatePath)) {
+                    $filePath = $candidatePath
+                    $resolved = $true
+                }else{
+                    $candidateHash = (Get-FileHash $candidatePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
+                    if ($candidateHash -eq $sourceHash) {
+                        $filePath = $candidatePath
+                        $resolved = $true
+                    }else{
+                        $counter++
+                    }
+                }
+            }
+        }
+    }
+
+    $logObj = New-Object psobject
+    $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
+    $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
+    $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
+    $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value $fileSize
+    $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
+    $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $filePath
+    $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressDestination" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressSuccess" -Value $null
+    $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressMessage" -Value $null
+
+    $orionCopyResult = copyVerifiedFile -file $file -filePath $filePath -sourceHash $sourceHash -targetName "Orion destination"
+    $logObj.Success = $orionCopyResult.Success
+    $logObj.Message = $orionCopyResult.Message
+
+    $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value (Get-Date)
+    $global:backupLog += $logObj
+}
+
+# Imports photos from a Leica M EV1 or M11. These cameras connect over PTP and
+# do not present themselves as a mounted volume, so they can't be backed up
+# like a normal SD card reader. gphoto2 (libgphoto2) is the closest thing to a
+# universal, scriptable solution across platforms (the same tool/commands
+# work on macOS and Linux; Windows has no native build and needs WSL2), so it
+# is used here to pull new files into a local staging folder that then flows
+# through the normal dated backup pipeline like any other -inputDirs entry.
+function importFromLeicaM {
+    $gphoto2Cmd = Get-Command gphoto2 -ErrorAction SilentlyContinue
+    if (-not $gphoto2Cmd) {
+        if ($IsWindows) {
+            throw "-backupForLeicaM requires 'gphoto2', which has no native Windows build. The Leica M EV1/M11 connect over PTP (not as a volume); install gphoto2 inside WSL2 (e.g. 'sudo apt install gphoto2') and run the import from there, or import via the camera's native Windows import dialog instead."
+        }
+        $installHint = if ($IsMacOS) { "brew install gphoto2" } else { "install gphoto2 via your distro's package manager, e.g. 'sudo apt install gphoto2'" }
+        throw "-backupForLeicaM requires the 'gphoto2' command-line tool to talk to the Leica M EV1/M11 over PTP (they do not present as a mounted volume). Install it with: $installHint"
+    }
+
+    Write-Host "Detecting Leica M EV1/M11 over PTP via gphoto2..."
+    $detectOutput = & gphoto2 --auto-detect 2>&1
+    $detectOutput | ForEach-Object { Write-Host $_ }
+    if (-not ($detectOutput -match "usb:|ptpip:")) {
+        throw "No PTP camera detected by gphoto2. Ensure the Leica M EV1/M11 is powered on, set to PTP mode (not Mass Storage), connected via USB, and not already claimed by Image Capture/Photos/Android File Transfer."
+    }
+
+    $stagingDir = Join-Path ([System.IO.Path]::GetTempPath()) ("Backup-SDCard-LeicaM-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+    if (-not (ensureDirectory -folderPath $stagingDir)) {
+        throw "Could not create staging directory $stagingDir for the Leica M import."
+    }
+
+    Write-Host "Downloading new files from the Leica M via gphoto2 into $stagingDir ..."
+    Push-Location $stagingDir
+    try {
+        & gphoto2 --get-all-files --recurse --skip-existing 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            throw "gphoto2 exited with code $LASTEXITCODE while downloading from the Leica M."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    return $stagingDir
+}
+
 function backupSource($inputDir){
     # get all files inside all folders and sub folders
     $files = Get-ChildItem $inputDir -file -Recurse
@@ -541,12 +693,12 @@ function backupSource($inputDir){
         $perct = ($fileCount / $files.count) * 100
         Write-Progress -Activity "Progress" -Status "Copying" -PercentComplete $perct
 
-        if ( [IO.Path]::GetExtension($fileName) -eq '.jpg' ) {
-            copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
-            #Write-Host "JPG: $f"
-        }
-        elseif ($global:jpgExts -contains $fileExt) {
-            copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
+        if ($global:jpgExts -contains $fileExt) {
+            if ($backupForOrion) {
+                copyFileToOrion -inputDir $inputDir -file $f -parent $parent
+            }else{
+                copyFileOfType -inputDir $inputDir -file $f -type "jpg" -parent $parent
+            }
             #Write-Host "JPG: $f"
         }
         elseif ($global:tifExts -contains $fileExt) {
@@ -595,6 +747,15 @@ function backupSource($inputDir){
 
     $filesNotCopied = $global:backupLog | Where-Object {$_.Success -eq $false}
     $filesNotCopied |Export-Csv -Path "~/Backup-SDCard-Resume.log" -NoTypeInformation
+}
+
+if ($backupForLeicaM) {
+    $leicaStagingDir = importFromLeicaM
+    $inputDirs += $leicaStagingDir
+}
+
+if ($inputDirs.Count -eq 0) {
+    throw "No input source specified. Provide at least one -inputDirs path or use -backupForLeicaM."
 }
 
 foreach ($inputDir in $inputDirs){
