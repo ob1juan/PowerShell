@@ -295,7 +295,26 @@ function copyVerifiedFile($file, $filePath, $sourceHash, $targetName) {
     if ((-not (Test-Path $filePath)) -or ($sourceHash -ne $destHash)) {
         try {
             $fileCopyStart = Get-Date
-            Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            # Copy-Item can return as soon as data is handed to the OS write cache,
+            # before it is actually flushed to the destination disk. For files that
+            # fit in RAM cache this makes the measured window too short and inflates
+            # the reported transfer speed far beyond what the hardware can do. Copy
+            # manually and flush the destination stream to disk so elapsed time
+            # reflects real I/O.
+            $sourceStream = [System.IO.File]::Open($file.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+            try {
+                $destStream = New-Object System.IO.FileStream($filePath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 1MB, [System.IO.FileOptions]::WriteThrough)
+                try {
+                    $sourceStream.CopyTo($destStream)
+                    $destStream.Flush($true)
+                }
+                finally {
+                    $destStream.Dispose()
+                }
+            }
+            finally {
+                $sourceStream.Dispose()
+            }
             $fileCopyEnd = Get-Date
             $destHash = (Get-FileHash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
