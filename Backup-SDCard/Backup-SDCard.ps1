@@ -630,8 +630,13 @@ foreach ($inputDir in $inputDirs){
     Write-Host "------------------------------------------"
 }
 $endDate = Get-Date
-$sizeBytes = $totalSize
+$overallTotalSize = $global:backupLog | Measure-Object -Property FileSize -Sum | Select-Object -ExpandProperty Sum
+$sizeBytes = $overallTotalSize
 $timeTaken = ($endDate - $date).TotalSeconds
-$speedMBps = ($totalSize / 1MB) / $timeTaken
+if ($timeTaken -gt 0){
+    $speedMBps = ($overallTotalSize / 1MB) / $timeTaken
+}else{
+    $speedMBps = 0
+}
 Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 0)) MB/s"
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
