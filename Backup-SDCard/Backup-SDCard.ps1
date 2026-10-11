@@ -45,8 +45,8 @@
     Imports photos from a Leica M EV1 or M11 connected over USB. These cameras
     use PTP and do not mount as a volume, so files are pulled with the
     'gphoto2' command-line tool (install via Homebrew on macOS or your distro's
-    package manager on Linux; Windows requires WSL2) into a temporary staging
-    folder, then processed through the normal dated backup pipeline like any
+    package manager on Linux; Windows uses the built-in Windows Portable Devices
+    interface, no install needed) into a temporary staging folder, then processed through the normal dated backup pipeline like any
     other -inputDirs entry. -inputDirs is optional when this switch is used.
 #>
 [CmdletBinding(PositionalBinding=$false)]
@@ -603,18 +603,84 @@ function copyFileToOrion($inputDir, $file, $parent) {
     $global:backupLog += $logObj
 }
 
+# Windows-native Leica M import. In PTP mode the camera shows up in Explorer as
+# a Windows Portable Devices (WPD) device under This PC, which is reachable
+# through the Shell.Application COM object, so no gphoto2/driver swap is needed.
+function importFromLeicaMWindows {
+    $shell = New-Object -ComObject Shell.Application
+    $thisPC = $shell.NameSpace(17)
+    $devices = @($thisPC.Items() | Where-Object { $_.IsFolder -and -not $_.IsFileSystem })
+    $leica = @($devices | Where-Object { $_.Name -match "Leica" })
+    if ($leica.Count -gt 0) { $devices = $leica }
+
+    if ($devices.Count -eq 0) {
+        throw "No PTP camera found under This PC. Ensure the Leica M EV1/M11 is powered on, set to PTP mode (not Mass Storage) and connected via USB."
+    }
+    if ($devices.Count -gt 1) {
+        throw "Multiple portable devices found ($($devices.Name -join ', ')) and none match 'Leica'. Disconnect the others and retry."
+    }
+    $device = $devices[0]
+    Write-Host "Found PTP device '$($device.Name)'. Downloading files via Windows Portable Devices..."
+
+    $stagingDir = Join-Path ([System.IO.Path]::GetTempPath()) ("Backup-SDCard-LeicaM-" + (Get-Date -Format "yyyyMMdd-HHmmss")) | Join-Path -ChildPath "LeicaM"
+    if (-not (ensureDirectory -folderPath $stagingDir)) {
+        throw "Could not create staging directory $stagingDir for the Leica M import."
+    }
+
+    function copyWpdFolder($shellFolderItem, $destPath) {
+        foreach ($item in $shellFolderItem.GetFolder.Items()) {
+            if ($item.IsFolder) {
+                $subDest = Join-Path $destPath $item.Name
+                if (-not (ensureDirectory -folderPath $subDest)) {
+                    throw "Could not create $subDest"
+                }
+                copyWpdFolder $item $subDest
+                continue
+            }
+
+            $target = Join-Path $destPath $item.Name
+            $expectedSize = [int64]$item.ExtendedProperty("System.Size")
+            Write-Host "Downloading $($item.Name)..."
+            # 0x14 = no progress UI + yes to all. CopyHere returns before the
+            # transfer finishes, so wait for the file to reach its full size.
+            $shell.NameSpace($destPath).CopyHere($item, 0x14)
+
+            $deadline = (Get-Date).AddMinutes(5)
+            $lastSize = -1
+            while ((Get-Date) -lt $deadline) {
+                Start-Sleep -Milliseconds 250
+                if (Test-Path -LiteralPath $target) {
+                    $size = (Get-Item -LiteralPath $target).Length
+                    if ($size -ge $expectedSize -and $size -eq $lastSize) { break }
+                    $lastSize = $size
+                }
+            }
+            if (-not (Test-Path -LiteralPath $target) -or (Get-Item -LiteralPath $target).Length -lt $expectedSize) {
+                throw "Timed out or incomplete download of $($item.Name) from the Leica M."
+            }
+        }
+    }
+
+    # The device root holds one or more storage entries (e.g. the SD card/internal memory)
+    foreach ($storage in $device.GetFolder.Items()) {
+        copyWpdFolder $storage $stagingDir
+    }
+
+    return $stagingDir
+}
+
 # Imports photos from a Leica M EV1 or M11. These cameras connect over PTP and
 # do not present themselves as a mounted volume, so they can't be backed up
 # like a normal SD card reader. gphoto2 (libgphoto2) is the closest thing to a
 # universal, scriptable solution across platforms (the same tool/commands
-# work on macOS and Linux; Windows has no native build and needs WSL2), so it
-# is used here to pull new files into a local staging folder that then flows
+# work on macOS and Linux; on Windows the native WPD fallback above is used), so
+# gphoto2 is used here to pull new files into a local staging folder that then flows
 # through the normal dated backup pipeline like any other -inputDirs entry.
 function importFromLeicaM {
     $gphoto2Cmd = Get-Command gphoto2 -ErrorAction SilentlyContinue
     if (-not $gphoto2Cmd) {
         if ($IsWindows) {
-            throw "-backupForLeicaM requires 'gphoto2', which has no native Windows build. The Leica M EV1/M11 connect over PTP (not as a volume); install gphoto2 inside WSL2 (e.g. 'sudo apt install gphoto2') and run the import from there, or import via the camera's native Windows import dialog instead."
+            return importFromLeicaMWindows
         }
         $installHint = if ($IsMacOS) { "brew install gphoto2" } else { "install gphoto2 via your distro's package manager, e.g. 'sudo apt install gphoto2'" }
         throw "-backupForLeicaM requires the 'gphoto2' command-line tool to talk to the Leica M EV1/M11 over PTP (they do not present as a mounted volume). Install it with: $installHint"
