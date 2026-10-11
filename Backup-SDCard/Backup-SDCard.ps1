@@ -333,6 +333,11 @@ function copyVerifiedFile($file, $filePath, $sourceHash, $targetName) {
         try {
             $fileCopyStart = Get-Date
             Copy-Item $file.FullName -Destination $filePath -ErrorAction Stop
+            # Copy-Item can return once data is in the OS write cache. fsync the
+            # destination so the timer includes the real flush to disk, keeping
+            # the reported MB/s honest without slowing the copy itself.
+            $flushStream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+            try { $flushStream.Flush($true) } finally { $flushStream.Dispose() }
             $fileCopyEnd = Get-Date
             $destHash = (Get-FileHash $filePath -Algorithm md5).Hash
             if ($sourceHash -eq $destHash){
