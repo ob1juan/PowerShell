@@ -641,7 +641,7 @@ function importFromLeicaM {
         throw "No PTP camera detected by gphoto2. Ensure the Leica M EV1/M11 is powered on, set to PTP mode (not Mass Storage), connected via USB, and not already claimed by Image Capture/Photos/Android File Transfer."
     }
 
-    $stagingDir = Join-Path ([System.IO.Path]::GetTempPath()) ("Backup-SDCard-LeicaM-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+    $stagingDir = Join-Path ([System.IO.Path]::GetTempPath()) ("Backup-SDCard-LeicaM-" + (Get-Date -Format "yyyyMMdd-HHmmss")) | Join-Path -ChildPath "LeicaM"
     if (-not (ensureDirectory -folderPath $stagingDir)) {
         throw "Could not create staging directory $stagingDir for the Leica M import."
     }
@@ -651,7 +651,8 @@ function importFromLeicaM {
     try {
         & gphoto2 --get-all-files --recurse --skip-existing 2>&1 | ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -ne 0) {
-            throw "gphoto2 exited with code $LASTEXITCODE while downloading from the Leica M."
+            $macHint = if ($IsMacOS) { " On macOS, the system's ptpcamerad often grabs the camera; close Photos/Image Capture and run 'killall ptpcamerad' (it relaunches), then re-run immediately, or try a different USB cable/port." } else { "" }
+            throw "gphoto2 exited with code $LASTEXITCODE while downloading from the Leica M. A PTP timeout usually means another process holds the USB connection or the camera is asleep; wake it and ensure it is in PTP mode.$macHint"
         }
     }
     finally {
@@ -776,6 +777,23 @@ foreach ($inputDir in $inputDirs){
 }
 
 $global:backupLog | Export-Csv -Path $global:backupLogPath -Append -NoTypeInformation
+
+# Remove the Leica M staging folder only when every staged file was backed up.
+if ($leicaStagingDir) {
+    $leicaFailures = $global:backupLog | Where-Object { $_.inputDir -eq $leicaStagingDir -and $_.Success -ne $true }
+    if (@($leicaFailures).Count -eq 0) {
+        try {
+            Remove-Item -Path (Split-Path $leicaStagingDir -Parent) -Recurse -Force -ErrorAction Stop
+            Write-Host "Removed Leica M staging folder $leicaStagingDir"
+        }
+        catch {
+            Write-Host -ForegroundColor Yellow "Could not remove staging folder $leicaStagingDir. $($_.Exception.Message)"
+        }
+    }
+    else {
+        Write-Host -ForegroundColor Yellow "Some Leica M files failed to back up; keeping staging folder $leicaStagingDir"
+    }
+}
 
 Write-host "Script Started: " $date
 
