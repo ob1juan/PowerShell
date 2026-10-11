@@ -32,12 +32,14 @@
     Filtering is based on each file's LastWriteTime.
 
 .PARAMETER backupForOrion
-    When specified, JPG files are copied only into a flat Orion folder
-    instead of the normal dated jpg destination (no duplicate copy is made).
+    When specified, JPG files are copied into a dated "Orion" subfolder
+    (e.g. <base>\2026\2026-10-03\Orion) instead of the normal dated jpg/parent
+    destination (no duplicate copy is made).
 
 .PARAMETER orionBackupPath
-    Destination folder for Orion JPGs. Defaults to an "Orion" subfolder inside
-    -outputDir when not specified.
+    Base directory under which the dated Orion subfolder is created
+    (e.g. <orionBackupPath>\2026\2026-10-03\Orion). Defaults to -outputDir
+    when not specified.
 
 .PARAMETER backupForLeicaM
     Imports photos from a Leica M EV1 or M11 connected over USB. These cameras
@@ -151,7 +153,7 @@ if ($backupForOrion){
         }
         $global:orionBackupDir = $orionBackupPath.TrimEnd([char[]]@( '\', '/' ))
     }else{
-        $global:orionBackupDir = $outputDir.TrimEnd([char[]]@( '\', '/' )) + $global:separator + "Orion"
+        $global:orionBackupDir = $outputDir.TrimEnd([char[]]@( '\', '/' ))
     }
 }
 
@@ -535,24 +537,31 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $global:backupLog += $logObj
 }
 
-# Copies a JPG straight into the flat Orion folder (no date subfolders),
-# instead of the normal dated jpg destination, to avoid keeping two copies of
+# Copies a JPG into a dated Orion folder (<base>\YYYY\YYYY-MM-DD\Orion),
+# alongside the same dated structure used for other file types, instead of
+# the normal dated jpg/parent destination, to avoid keeping two copies of
 # every JPG on disk. If a different file already occupies that filename (e.g.
 # the same filename came from another card/session), a numbered suffix is
 # used instead of silently overwriting unrelated content.
 function copyFileToOrion($inputDir, $file, $parent) {
     $fileName = $file.Name
+    $dateCreated = $file.CreationTime
+    $year = $dateCreated.Year
+    $month = (Get-Date -Date $dateCreated).ToString("MM")
+    $day = (Get-Date -Date $dateCreated).ToString("dd")
 
-    if (-not (ensureDirectory -folderPath $global:orionBackupDir)) {
+    $orionFolder = $global:orionBackupDir + $global:separator + $year + $global:separator + $year + "-" + $month + "-" + $day + $global:separator + "Orion"
+
+    if (-not (ensureDirectory -folderPath $orionFolder)) {
         $logObj = New-Object psobject
         $logObj | Add-Member -MemberType NoteProperty -Name "StartDate" -Value (Get-Date)
         $logObj | Add-Member -MemberType NoteProperty -Name "inputDir" -Value $inputDir
         $logObj | Add-Member -MemberType NoteProperty -Name "File" -Value $fileName
         $logObj | Add-Member -MemberType NoteProperty -Name "FileSize" -Value (Get-Item $file).Length
         $logObj | Add-Member -MemberType NoteProperty -Name "Source" -Value $file.FullName
-        $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $global:orionBackupDir
+        $logObj | Add-Member -MemberType NoteProperty -Name "Destination" -Value $orionFolder
         $logObj | Add-Member -MemberType NoteProperty -Name "Success" -Value $false
-        $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value "Could not create $global:orionBackupDir"
+        $logObj | Add-Member -MemberType NoteProperty -Name "Message" -Value "Could not create $orionFolder"
         $logObj | Add-Member -MemberType NoteProperty -Name "EndDate" -Value (Get-Date)
         $global:backupLog += $logObj
         return
@@ -560,7 +569,7 @@ function copyFileToOrion($inputDir, $file, $parent) {
 
     $sourceHash = (Get-FileHash $file.FullName -Algorithm md5).Hash
     $fileSize = (Get-Item $file).Length
-    $filePath = $global:orionBackupDir + $global:separator + $fileName
+    $filePath = $orionFolder + $global:separator + $fileName
 
     if (Test-Path $filePath) {
         $existingHash = (Get-FileHash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
@@ -570,7 +579,7 @@ function copyFileToOrion($inputDir, $file, $parent) {
             $counter = 1
             $resolved = $false
             while (-not $resolved) {
-                $candidatePath = $global:orionBackupDir + $global:separator + "$baseName`_$counter$ext"
+                $candidatePath = $orionFolder + $global:separator + "$baseName`_$counter$ext"
                 if (-not (Test-Path $candidatePath)) {
                     $filePath = $candidatePath
                     $resolved = $true
