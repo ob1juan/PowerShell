@@ -523,6 +523,28 @@ function copyFileOfType($inputDir, $file, $type, $parent) {
     $global:backupLog += $logObj
 }
 
+# Index of every file already in an Orion folder under the Orion base dir,
+# keyed by size, so identical files are found regardless of which dated
+# folder or numbered suffix they ended up under.
+$global:orionIndex = $null
+function getOrionIndex {
+    if ($null -ne $global:orionIndex) { return $global:orionIndex }
+    $global:orionIndex = @{}
+    if (Test-Path $global:orionBackupDir) {
+        Get-ChildItem -Path $global:orionBackupDir -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^\d{4}$' } |
+            Get-ChildItem -Directory -ErrorAction SilentlyContinue |
+            Get-ChildItem -Directory -Filter "Orion" -ErrorAction SilentlyContinue |
+            Get-ChildItem -File -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                $key = [string]$_.Length
+                if (-not $global:orionIndex.ContainsKey($key)) { $global:orionIndex[$key] = @() }
+                $global:orionIndex[$key] += $_.FullName
+            }
+    }
+    return $global:orionIndex
+}
+
 # Copies a JPG into a dated Orion folder (<base>\YYYY\YYYY-MM-DD\Orion),
 # alongside the same dated structure used for other file types, instead of
 # the normal dated jpg/parent destination, to avoid keeping two copies of
@@ -557,7 +579,20 @@ function copyFileToOrion($inputDir, $file, $parent) {
     $fileSize = (Get-Item $file).Length
     $filePath = $orionFolder + $global:separator + $fileName
 
-    if (Test-Path $filePath) {
+    # Skip if an identical file (same size and hash) already exists anywhere in the Orion folders
+    $index = getOrionIndex
+    $existingDuplicate = $null
+    foreach ($candidate in @($index[[string]$fileSize])) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate) -and ((Get-FileHash -LiteralPath $candidate -Algorithm md5 -ErrorAction SilentlyContinue).Hash -eq $sourceHash)) {
+            $existingDuplicate = $candidate
+            break
+        }
+    }
+
+    if ($existingDuplicate) {
+        $filePath = $existingDuplicate
+    }
+    elseif (Test-Path $filePath) {
         $existingHash = (Get-FileHash $filePath -Algorithm md5 -ErrorAction SilentlyContinue).Hash
         if ($existingHash -ne $sourceHash) {
             $baseName = [IO.Path]::GetFileNameWithoutExtension($fileName)
@@ -596,6 +631,11 @@ function copyFileToOrion($inputDir, $file, $parent) {
     $logObj | Add-Member -MemberType NoteProperty -Name "PhotosInProgressMessage" -Value $null
 
     $orionCopyResult = copyVerifiedFile -file $file -filePath $filePath -sourceHash $sourceHash -targetName "Orion destination"
+    if ($orionCopyResult.Success -and -not $existingDuplicate) {
+        $key = [string]$fileSize
+        if (-not $index.ContainsKey($key)) { $index[$key] = @() }
+        $index[$key] += $filePath
+    }
     $logObj.Success = $orionCopyResult.Success
     $logObj.Message = $orionCopyResult.Message
 
