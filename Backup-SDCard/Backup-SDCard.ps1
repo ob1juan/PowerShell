@@ -350,7 +350,7 @@ function copyVerifiedFile($file, $filePath, $sourceHash, $targetName) {
 
                 $roundedSpeedMBps = [math]::Round($speedMBps, 0)
                 Write-Output "$targetName Transfer Speed: $roundedSpeedMBps MB/s"
-                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " $roundedSpeedMBps "MB/s Size: " ($fileSize / 1MB) "MB"
+                Write-Host -ForegroundColor Green $filePath "copied and verified. Time:" (New-TimeSpan -Start $fileCopyStart -End $fileCopyEnd) " Speed: " $roundedSpeedMBps "MB/s Size: " ([math]::Ceiling($fileSize / 1MB)) "MB"
 
                 return [pscustomobject]@{
                     Success = $true
@@ -905,7 +905,7 @@ foreach ($inputDir in $inputDirs){
     Write-Host "$inputDir "
     Write-Host "Started: " $startDate
     Write-host "Ended: " $endDate
-    Write-Host "Total Size: " ($totalSize / 1MB) "MB"
+    Write-Host "Total Size: " ([math]::Ceiling($totalSize / 1MB)) "MB"
     Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
