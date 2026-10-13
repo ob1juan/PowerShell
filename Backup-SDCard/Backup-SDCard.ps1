@@ -907,6 +907,9 @@ foreach ($inputDir in $inputDirs){
     Write-host "Ended: " $endDate
     Write-Host "Total Size: " ([math]::Ceiling($totalSize / 1MB)) "MB"
     Write-Host "Time taken: " (New-TimeSpan -Start $startDate -End $endDate)
+    $volSeconds = if ($startDate -and $endDate) { ($endDate - $startDate).TotalSeconds } else { 0 }
+    $volSpeedMBps = if ($volSeconds -gt 0) { ($totalSize / 1MB) / $volSeconds } else { 0 }
+    Write-Host "Transfer Speed: $([math]::Round($volSpeedMBps, 0)) MB/s"
     Write-Host -ForegroundColor Gray "Backup of $inputDir complete."
     Write-Host -ForegroundColor Yellow "$fileCount total files in source."
     if ($newFilesCount -gt 0) {
@@ -937,5 +940,6 @@ if ($timeTaken -gt 0){
 }else{
     $speedMBps = 0
 }
+Write-Host "Total Size (all volumes): " ([math]::Ceiling($overallTotalSize / 1MB)) "MB"
 Write-Output "Total Transfer Speed: $([math]::Round($speedMBps, 0)) MB/s"
 Write-Host "Total Time taken: " (New-TimeSpan -Start $date -End $endDate)
